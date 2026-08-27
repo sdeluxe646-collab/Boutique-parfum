@@ -36,7 +36,6 @@ export default function CheckoutForm() {
   const [relays, setRelays] = useState([]);
   const [selectedRelay, setSelectedRelay] = useState(null);
   const [relayLoading, setRelayLoading] = useState(false);
-  const [relayManual, setRelayManual] = useState(false);
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
@@ -67,18 +66,15 @@ export default function CheckoutForm() {
     setRelayLoading(true);
     setRelays([]);
     setSelectedRelay(null);
-    setRelayManual(false);
     try {
       const { data } = await api.post("/relay-points", { postcode: form.postal_code.trim(), country: "FR" });
       if (!data.length) {
-        toast.error("Aucun Point Relais trouvé — indiquez votre point relais préféré ci-dessous.");
-        setRelayManual(true);
+        toast("Aucun point relais trouvé — indiquez votre point relais préféré dans le champ ci-dessous.");
         return;
       }
       setRelays(data);
     } catch {
-      toast.error("Recherche indisponible — indiquez votre point relais préféré ci-dessous.");
-      setRelayManual(true);
+      toast("La recherche automatique arrive très bientôt — indiquez votre point relais préféré dans le champ ci-dessous.");
     } finally {
       setRelayLoading(false);
     }
@@ -262,24 +258,27 @@ export default function CheckoutForm() {
               )}
               {selectedRelay && (
                 <p className="mt-3 text-xs text-emerald-700" data-testid="relay-selected-hint">
-                  ✓ Point Relais sélectionné : {selectedRelay.name} ({selectedRelay.city})
+                  ✓ Point Relais retenu : {selectedRelay.name}{selectedRelay.city ? ` (${selectedRelay.city})` : ""}
                 </p>
               )}
-              {relayManual && (
-                <label className="block mt-4">
-                  <span className="block text-xs uppercase tracking-[0.12em] text-[#6E6763] mb-1.5">Votre Point Relais préféré (nom + adresse)</span>
-                  <input
-                    data-testid="input-relay-manual"
-                    className="lux-input" placeholder="ex : Relais Pickup Carrefour, 12 Rue des Lilas, Lyon"
-                    value={form.relay_manual || ""}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setForm((f) => ({ ...f, relay_manual: v }));
-                      setSelectedRelay(v.trim() ? { id: "MANUEL", name: v.trim(), address: "", postcode: form.postal_code, city: form.city } : null);
-                    }}
-                  />
-                </label>
-              )}
+              <div className="mt-4 flex items-center gap-3">
+                <span className="hairline flex-1" style={{ background: "#EBE5DB" }} />
+                <span className="text-[10px] uppercase tracking-[0.2em] text-[#A09891]">ou</span>
+                <span className="hairline flex-1" style={{ background: "#EBE5DB" }} />
+              </div>
+              <label className="block mt-4">
+                <span className="block text-xs uppercase tracking-[0.12em] text-[#6E6763] mb-1.5">Indiquez votre Point Relais préféré (nom + ville) *</span>
+                <input
+                  data-testid="input-relay-manual"
+                  className="lux-input" placeholder="ex : Relais Pickup Carrefour, 12 Rue des Lilas, Lyon"
+                  value={form.relay_manual || ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setForm((f) => ({ ...f, relay_manual: v }));
+                    setSelectedRelay(v.trim() ? { id: "MANUEL", name: v.trim(), address: "", postcode: form.postal_code, city: form.city } : null);
+                  }}
+                />
+              </label>
             </div>
           )}
         </motion.section>
