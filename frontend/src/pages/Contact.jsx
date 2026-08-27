@@ -39,7 +39,7 @@ export default function Contact() {
           </p>
           <div className="mt-10 space-y-4">
             {[
-              { icon: Mail, label: "E-mail", value: "contact@atelier-parfums.fr", href: "mailto:contact@atelier-parfums.fr", testid: "contact-email" },
+              { icon: Mail, label: "E-mail", value: "lateliersparfum@gmail.com", href: "mailto:lateliersparfum@gmail.com", testid: "contact-email" },
               { icon: Instagram, label: "Instagram", value: "@atelierdesparfums", href: "https://instagram.com", testid: "contact-instagram" },
               { icon: Music2, label: "TikTok (lives)", value: "@atelierdesparfums", href: "https://tiktok.com", testid: "contact-tiktok" },
             ].map((c) => (

@@ -59,7 +59,7 @@ export default function AdminLogin() {
             <input
               data-testid="input-admin-username"
               type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@atelier-parfums.fr"
+              placeholder="lateliersparfum@gmail.com"
               className="w-full rounded-xl bg-[#0B0908] border border-[#D4AF37]/25 px-4 py-3 text-sm text-[#FAF7F2] placeholder-[#6E6763] outline-none focus:border-[#D4AF37]"
             />
           </label>
