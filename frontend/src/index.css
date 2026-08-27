@@ -1,0 +1,118 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Jost:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --noir: #0B0908;
+  --noir-soft: #161210;
+  --gold: #D4AF37;
+  --gold-soft: #F3EAD3;
+  --cream: #FAF7F2;
+  --cream-border: #E8E2D9;
+  --ink: #1A1513;
+  --ink-secondary: #6E6763;
+  --rose: #C84B67;
+  --background: 36 33% 96%;
+  --foreground: 20 14% 9%;
+  --card: 0 0% 100%;
+  --card-foreground: 20 14% 9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14% 9%;
+  --primary: 45 65% 52%;
+  --primary-foreground: 20 14% 9%;
+  --secondary: 36 20% 92%;
+  --secondary-foreground: 20 14% 9%;
+  --muted: 36 20% 92%;
+  --muted-foreground: 20 8% 42%;
+  --accent: 45 65% 52%;
+  --accent-foreground: 20 14% 9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 36 18% 88%;
+  --input: 36 18% 88%;
+  --ring: 45 65% 52%;
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Jost', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background: var(--gold);
+    color: var(--noir);
+  }
+}
+
+.font-display {
+  font-family: 'Cormorant Garamond', serif;
+}
+.font-body {
+  font-family: 'Jost', sans-serif;
+}
+.font-mono-lux {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.gold-text {
+  background: linear-gradient(105deg, #b8912f 0%, #f3e2a8 35%, #d4af37 60%, #a8821f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gold-border-card {
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.08), 0 24px 60px -24px rgba(0, 0, 0, 0.55);
+}
+
+.noise-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes marquee-lux {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee-lux {
+  animation: marquee-lux 42s linear infinite;
+}
+
+@keyframes shimmer-gold {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+.animate-float-slow {
+  animation: float-slow 7s ease-in-out infinite;
+}
+
+.lux-input {
+  @apply w-full rounded-xl border bg-white px-4 py-3 text-sm text-[#1A1513] placeholder-[#A09891] outline-none transition-colors;
+  border-color: var(--cream-border);
+}
+.lux-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
+}
+
+.hairline {
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.6), transparent);
+  height: 1px;
+}

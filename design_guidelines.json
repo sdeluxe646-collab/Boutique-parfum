@@ -1,0 +1,217 @@
+{
+  "project_info": {
+    "app_name": "L'Atelier des parfums",
+    "app_type": "hybrid_fullstack",
+    "tagline": "Haute Parfumerie & Live Shopping Checkout Engine",
+    "language": "French (FR)",
+    "tech_stack": {
+      "frontend": "React.js (.js files), Tailwind CSS, Framer Motion, Lucide Icons, Shadcn UI primitives, Sonner toasts",
+      "backend": "FastAPI (Python), SQLite/Pydantic, Stripe Integration",
+      "scrolling": "Lenis Smooth Scroll"
+    }
+  },
+  "design_identity": {
+    "persona": "E1 - The Anti-AI Designer",
+    "archetype": "French Luxury Perfume Atelier x Live Shopping Checkout (BuyLive-inspired cream/rose aesthetic)",
+    "emotional_tone": "Sensual, Prestigious, Ultra-trustworthy, Seamless, High-conversion",
+    "principles": [
+      "Fusion over Imitation: Mix French Haute Parfumerie editorial elegance with crisp BuyLive-style live checkout UX.",
+      "Emotion & Trust First: High-contrast luxury badges, clear shipping selection (Chronopost & Mondial Relay), instant total calculation.",
+      "Content is King: Narrative step numbers (ÉTAPE 1, ÉTAPE 2, ÉTAPE 3) with dynamic live item reference preview.",
+      "Negative Space & Tactile Depth: Off-white cream backgrounds (#FAF7F2), subtle subtle borders (#E8E2D9), glassmorphism floating order summary."
+    ]
+  },
+  "color_system": {
+    "palette_name": "Velvet Rose & Warm Alabaster Atelier",
+    "background_primary": "#FAF7F2",
+    "background_secondary": "#FFFFFF",
+    "background_dark": "#161210",
+    "card_background": "#FFFFFF",
+    "card_border": "#EBE5DB",
+    "text_primary": "#1A1513",
+    "text_secondary": "#6E6763",
+    "text_muted": "#A09891",
+    "brand_accent": "#C84B67",
+    "brand_accent_hover": "#A83650",
+    "brand_burgundy": "#8C1C35",
+    "gold_accent": "#D4AF37",
+    "gold_muted": "#F3EAD3",
+    "status_paid_bg": "#ECFDF5",
+    "status_paid_text": "#047857",
+    "status_pending_bg": "#FFFBEB",
+    "status_pending_text": "#B45309",
+    "status_unpaid_bg": "#FEF2F2",
+    "status_unpaid_text": "#B91C1C",
+    "forbidden_colors": ["#7351B7", "#1B93A4"]
+  },
+  "typography": {
+    "heading_font": "Cormorant Garamond, serif / Playfair Display, serif",
+    "body_font": "DM Sans, sans-serif / Montserrat, sans-serif",
+    "mono_font": "JetBrains Mono, monospace (for live references, order IDs, amounts)",
+    "scale": {
+      "hero_title": "text-4xl sm:text-5xl lg:text-6xl font-serif tracking-tight font-medium text-[#1A1513]",
+      "section_title": "text-2xl sm:text-3xl font-serif text-[#1A1513] tracking-tight",
+      "step_badge": "text-xs font-mono uppercase tracking-[0.2em] text-[#C84B67] bg-[#FDF2F4] px-3 py-1 rounded-full font-semibold",
+      "card_title": "text-lg font-serif font-semibold text-[#1A1513]",
+      "body_text": "text-sm text-[#6E6763] leading-relaxed",
+      "price_highlight": "text-3xl font-mono font-bold text-[#1A1513]"
+    }
+  },
+  "layout_and_spacing": {
+    "checkout_grid": "grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-16",
+    "main_form_column": "lg:col-span-7 space-y-8",
+    "sticky_summary_column": "lg:col-span-5 lg:sticky lg:top-24 space-y-6",
+    "admin_layout": "min-h-screen bg-[#F4F1EA] text-[#1A1513] grid grid-cols-1 lg:grid-cols-12",
+    "padding_standard": "p-6 sm:p-8",
+    "border_radius": "rounded-2xl for cards and buttons, rounded-xl for inputs",
+    "bento_grid_admin": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+  },
+  "key_features_and_components": {
+    "public_checkout_page": {
+      "header": {
+        "description": "Sticky top glassmorphism navigation bar with brand logo 'L'Atelier des parfums', trust tagline, currency indicator, and live session status badge",
+        "logo_text": "L'ATELIER DES PARFUMS",
+        "sub_tagline": "Haute Parfumerie Paris • Vendeur Vérifié",
+        "action_button": "Espace Admin / Mon Compte"
+      },
+      "hero_banner": {
+        "title": "Règlement Rapide Live Shopping",
+        "subtitle": "Finalisez votre commande en direct de L'Atelier des parfums. Expédition Express Chronopost & Mondial Relay.",
+        "trust_badges": [
+          "✓ Vendeur Vérifié Live",
+          "✓ Paiement 100% Sécurisé Stripe",
+          "✓ Retours & Service Client FR"
+        ]
+      },
+      "step_1_customer_info": {
+        "step_name": "ÉTAPE 1 : Informations & Référence Live",
+        "fields": [
+          {"id": "amount", "label": "Montant (€)", "placeholder": "ex: 45.00", "type": "number", "testid": "input-amount", "required": true},
+          {"id": "reference", "label": "Référence de la commande / Article Live", "placeholder": "ex: PARFUM-ROSE-LIVE-01", "type": "text", "testid": "input-reference", "required": true},
+          {"id": "pseudo", "label": "Pseudo TikTok / Instagram (Optionnel)", "placeholder": "ex: @marine_parfum", "type": "text", "testid": "input-pseudo"},
+          {"id": "firstname", "label": "Prénom", "placeholder": "Marine", "type": "text", "testid": "input-firstname", "required": true},
+          {"id": "lastname", "label": "Nom", "placeholder": "Dupont", "type": "text", "testid": "input-lastname", "required": true},
+          {"id": "email", "label": "Adresse E-mail", "placeholder": "marine.dupont@example.com", "type": "email", "testid": "input-email", "required": true},
+          {"id": "phone", "label": "Numéro de téléphone", "placeholder": "+33 6 12 34 56 78", "type": "tel", "testid": "input-phone", "required": true},
+          {"id": "address", "label": "Adresse postale", "placeholder": "12 Rue de la Paix", "type": "text", "testid": "input-address", "required": true},
+          {"id": "postal_code", "label": "Code postal", "placeholder": "75002", "type": "text", "testid": "input-postal-code", "required": true},
+          {"id": "city", "label": "Ville", "placeholder": "Paris", "type": "text", "testid": "input-city", "required": true},
+          {"id": "country", "label": "Pays", "placeholder": "France", "type": "select", "options": ["France", "Belgique", "Suisse", "Luxembourg"], "testid": "select-country", "required": true}
+        ]
+      },
+      "step_2_shipping_selection": {
+        "step_name": "ÉTAPE 2 : Mode de Livraison",
+        "shipping_providers": [
+          {
+            "id": "chronopost_relais",
+            "name": "Chronopost Relais Express",
+            "delivery_time": "Livraison en 24h en Point Relais",
+            "price": 4.90,
+            "badge": "Recommandé Live",
+            "icon": "Package",
+            "testid": "shipping-chronopost-relais"
+          },
+          {
+            "id": "chronopost_domicile",
+            "name": "Chronopost Domicile Express 24h",
+            "delivery_time": "Remise en main propre contre signature",
+            "price": 8.90,
+            "badge": "Express",
+            "icon": "Truck",
+            "testid": "shipping-chronopost-domicile"
+          },
+          {
+            "id": "mondial_relay",
+            "name": "Mondial Relay Point Relais",
+            "delivery_time": "Livraison sous 3 à 5 jours ouvrés",
+            "price": 3.90,
+            "badge": "Économique",
+            "icon": "Store",
+            "testid": "shipping-mondial-relay"
+          }
+        ]
+      },
+      "step_3_order_summary_and_payment": {
+        "step_name": "ÉTAPE 3 : Résumé & Mode de Paiement",
+        "summary_breakdown": [
+          "Sous-total article(s)",
+          "Frais de livraison",
+          "TVA incluse (20%)",
+          "TOTAL À PAYER"
+        ],
+        "payment_methods": [
+          {
+            "id": "stripe_card",
+            "name": "Carte Bancaire (VISA, Mastercard, CB)",
+            "subtitle": "Paiement ultra-sécurisé via Stripe",
+            "icons": ["Visa", "Mastercard", "CB", "Stripe"],
+            "testid": "payment-method-stripe"
+          }
+        ],
+        "cgv_checkbox": {
+          "text": "J'accepte les Conditions Générales de Vente (CGV) et confirme ma commande.",
+          "testid": "checkbox-cgv"
+        },
+        "pay_button": {
+          "label": "Procéder au paiement sécurisé • {TOTAL} €",
+          "testid": "button-submit-payment"
+        }
+      }
+    },
+    "admin_dashboard": {
+      "auth_modal": {
+        "title": "Connexion Administration • L'Atelier des parfums",
+        "fields": [
+          {"id": "username", "label": "Identifiant Admin", "testid": "input-admin-username"},
+          {"id": "password", "label": "Mot de passe", "testid": "input-admin-password"}
+        ],
+        "login_button_testid": "button-admin-login"
+      },
+      "dashboard_view": {
+        "header": {
+          "title": "Tableau de Bord Commandes & Ventes",
+          "actions": ["Créer une commande manuelle", "Exporter CSV", "Déconnexion"],
+          "testid_logout": "button-admin-logout"
+        },
+        "kpi_cards": [
+          {"title": "Total Ventes", "key": "total_revenue", "testid": "kpi-total-revenue"},
+          {"title": "Commandes Payées", "key": "paid_orders_count", "testid": "kpi-paid-count"},
+          {"title": "En Attente de Règlement", "key": "pending_orders_count", "testid": "kpi-pending-count"},
+          {"title": "Panier Moyen", "key": "average_order_value", "testid": "kpi-aov"}
+        ],
+        "orders_table": {
+          "testid": "table-admin-orders",
+          "columns": [
+            "ID / Date",
+            "Client & Pseudo",
+            "Référence Live",
+            "Montant Total",
+            "Mode Livraison",
+            "Statut Paiement",
+            "Actions"
+          ],
+          "action_buttons": [
+            {"label": "Voir Détails", "testid": "btn-view-order-details"},
+            {"label": "Marquer Payé", "testid": "btn-toggle-paid-status"},
+            {"label": "Générer Lien Stripe", "testid": "btn-copy-payment-link"}
+          ]
+        }
+      }
+    }
+  },
+  "image_urls": {
+    "hero_atelier": "https://images.pexels.com/photos/4735908/pexels-photo-4735908.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "chanel_n5": "https://images.unsplash.com/photo-1541643600914-78b084683601?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHxfHxwZXJmdW1lJTIwYm90dGxlfGVufDB8fHx8MTc4NzgyNTc5N3ww&ixlib=rb-4.1.0&q=85",
+    "gold_perfume": "https://images.unsplash.com/photo-1600634999623-864991678406?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTV8MHwxfHNlYXJjaHw0fHxsdXh1cnklMjBjb3NtZXRpY3N8ZW58MHx8fHwxNzg3ODI1Nzk4fDA&ixlib=rb-4.1.0&q=85",
+    "luxury_dark_bottle": "https://images.unsplash.com/photo-1610461888750-10bfc601b874?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaH3fHxwZXJmdW1lJTIwYm90dGxlfGVufDB8fHx8MTc4NzgyNTc5N3ww&ixlib=rb-4.1.0&q=85",
+    "rustic_parfum": "https://images.pexels.com/photos/15096784/pexels-photo-15096784.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+  },
+  "instructions_to_main_agent": [
+    "1. Ensure full compliance with user request: 'L'Atelier des parfums' logo & title, BuyLive-inspired order structure with Montant + Référence + Pseudo + Customer Details + Chronopost / Mondial Relay shipping + Stripe real card payment + Admin account dashboard.",
+    "2. Implement backend APIs in server.py: GET/POST /api/orders, PUT /api/orders/{id}/status, POST /api/create-payment-intent (Stripe), POST /api/admin/login, GET /api/admin/stats.",
+    "3. Add mock data for initial admin view so the admin dashboard presents existing sample orders right after startup.",
+    "4. Ensure every button, input, tab, card, and row includes its designated data-testid attribute.",
+    "5. Use Sonner toasts for clear user feedback upon order creation, copy link, payment success, or login errors.",
+    "6. Make the checkout experience smooth on mobile devices with sticky subtotal bars and step progress indicator."
+  ]
+}
