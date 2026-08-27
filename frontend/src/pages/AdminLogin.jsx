@@ -9,6 +9,7 @@ export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [forgot, setForgot] = useState(false);
   const navigate = useNavigate();
 
   const submit = async (e) => {
@@ -20,6 +21,21 @@ export default function AdminLogin() {
       navigate("/admin/dashboard");
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
+      setLoading(false);
+    }
+  };
+
+  const submitForgot = async (e) => {
+    e.preventDefault();
+    if (!email.trim()) return toast.error("Indiquez votre adresse e-mail.");
+    setLoading(true);
+    try {
+      await api.post("/auth/forgot-password", { email });
+      toast.success("Si ce compte existe, un e-mail de réinitialisation vient d'être envoyé (valable 1h).");
+      setForgot(false);
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
       setLoading(false);
     }
   };
@@ -64,7 +80,33 @@ export default function AdminLogin() {
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
             Se connecter
           </button>
+          <button
+            type="button"
+            data-testid="link-forgot-password"
+            onClick={() => setForgot((f) => !f)}
+            className="w-full text-center text-xs text-[#A09891] hover:text-[#D4AF37] transition-colors"
+          >
+            Mot de passe oublié ?
+          </button>
         </form>
+        {forgot && (
+          <form onSubmit={submitForgot} className="mt-4 bg-[#0B0908] border border-[#D4AF37]/25 rounded-xl p-4" data-testid="forgot-password-form">
+            <p className="text-xs text-[#A09891] mb-3">Entrez votre e-mail admin : vous recevrez un lien valable 1 heure.</p>
+            <div className="flex gap-2">
+              <input
+                data-testid="input-forgot-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder="latelierparfum@gmail.com"
+                className="flex-1 rounded-xl bg-[#161210] border border-[#D4AF37]/25 px-4 py-2.5 text-sm text-[#FAF7F2] placeholder-[#6E6763] outline-none focus:border-[#D4AF37]"
+              />
+              <button
+                data-testid="button-forgot-send" type="submit" disabled={loading}
+                className="rounded-xl bg-[#D4AF37] text-[#0B0908] px-4 py-2.5 text-xs font-semibold hover:bg-[#F3EAD3] transition-colors disabled:opacity-60"
+              >
+                Envoyer
+              </button>
+            </div>
+          </form>
+        )}
         <div className="text-center mt-6">
           <Link to="/" className="text-xs text-[#6E6763] hover:text-[#D4AF37]" data-testid="back-to-shop-link">← Retour à la boutique</Link>
         </div>

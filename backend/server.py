@@ -334,6 +334,66 @@ async def logout(response: Response):
     return {"status": "ok"}
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=100)
+
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest):
+    import secrets
+    email = req.email.lower()
+    user = await db.users.find_one({"email": email})
+    if user:
+        token = secrets.token_urlsafe(32)
+        await db.password_reset_tokens.insert_one({
+            "token": token,
+            "email": email,
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+            "used": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        link = f"{SITE_URL}/admin/reset?token={token}"
+        html = (
+            '<table role="presentation" width="100%" style="background:#0B0908;padding:32px 0">'
+            '<tr><td align="center"><table role="presentation" width="560" style="background:#161210;border:1px solid #D4AF37;border-radius:16px;padding:32px;font-family:Georgia,serif">'
+            '<tr><td><h1 style="color:#D4AF37;font-size:22px;margin:0 0 12px">Réinitialisation de votre mot de passe</h1>'
+            '<p style="color:#B9B0A6;font-size:14px;line-height:1.6;margin:0 0 16px">Vous avez demandé à réinitialiser le mot de passe '
+            "de votre espace admin L'Atelier des parfums. Ce lien est valable 1 heure et à usage unique. "
+            "Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>"
+            f'<p style="margin:20px 0"><a href="{link}" style="background:#D4AF37;color:#0B0908;padding:12px 28px;border-radius:24px;text-decoration:none;font-size:14px">Réinitialiser mon mot de passe</a></p>'
+            '<p style="font-size:12px;color:#6E6763;margin:16px 0 0">L\'Atelier des parfums — nous ne vous demanderons jamais '
+            "votre mot de passe par e-mail.</p>"
+            "</td></tr></table></td></tr></table>"
+        )
+        try:
+            await send_email(to=email, subject="Réinitialisation mot de passe — L'Atelier des parfums", html=html)
+        except Exception as exc:
+            logger.error(f"Échec email reset {email}: {exc}")
+    return {"status": "ok"}
+
+
+@api_router.post("/auth/reset-password")
+async def reset_password(req: ResetPasswordRequest):
+    doc = await db.password_reset_tokens.find_one({"token": req.token, "used": False})
+    if not doc:
+        raise HTTPException(status_code=400, detail="Lien invalide ou déjà utilisé")
+    expires = doc["expires_at"]
+    if isinstance(expires, str):
+        expires = datetime.fromisoformat(expires)
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expires:
+        raise HTTPException(status_code=400, detail="Lien expiré — refaites une demande")
+    await db.users.update_one({"email": doc["email"]}, {"$set": {"password_hash": hash_password(req.new_password)}})
+    await db.password_reset_tokens.update_one({"_id": doc["_id"]}, {"$set": {"used": True}})
+    return {"status": "ok"}
+
+
 # ---------- Orders ----------
 
 class OrderCreate(BaseModel):
@@ -745,6 +805,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 async def startup():
     await db.users.create_index("email", unique=True)
     await db.login_attempts.create_index("identifier")
+    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
 
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
