@@ -1,6 +1,9 @@
 import { motion, useScroll, useTransform } from "framer-motion";
-import { ShieldCheck, BadgeCheck, Lock, Sparkles } from "lucide-react";
-import CheckoutForm from "@/components/CheckoutForm";
+import { ShieldCheck, BadgeCheck, Lock, Sparkles, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { SiteNav, SiteFooter } from "@/components/SiteChrome";
+import { api, formatEUR } from "@/lib/api";
 
 const MaskedLine = ({ children, delay = 0, className = "" }) => (
   <span className="block overflow-hidden">
@@ -34,30 +37,15 @@ export default function Home() {
   const { scrollY } = useScroll();
   const heroY = useTransform(scrollY, [0, 600], [0, 120]);
   const heroScale = useTransform(scrollY, [0, 600], [1, 1.06]);
+  const [featured, setFeatured] = useState([]);
+
+  useEffect(() => {
+    api.get("/products").then(({ data }) => setFeatured(data.slice(0, 3))).catch(() => {});
+  }, []);
 
   return (
     <div className="bg-[#0B0908] min-h-screen" data-testid="home-page">
-      {/* Nav */}
-      <header className="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-[#0B0908]/70 border-b border-[#D4AF37]/15">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3" data-testid="nav-brand">
-            <img src="/assets/logo.png" alt="L'Atelier des parfums" className="h-10 w-10 object-cover rounded-full border border-[#D4AF37]/40" />
-            <span className="font-display text-lg tracking-wide text-[#F3EAD3]">L'Atelier <span className="italic gold-text">des parfums</span></span>
-          </a>
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:flex items-center gap-1.5 text-xs text-[#A09891]">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live en cours
-            </span>
-            <a
-              href="/admin"
-              data-testid="nav-admin-link"
-              className="text-xs tracking-[0.15em] uppercase text-[#D4AF37] border border-[#D4AF37]/40 rounded-full px-4 py-2 hover:bg-[#D4AF37] hover:text-[#0B0908] transition-colors"
-            >
-              Espace Admin
-            </a>
-          </div>
-        </div>
-      </header>
+      <SiteNav />
 
       {/* Hero */}
       <section className="relative min-h-[92vh] flex items-end overflow-hidden noise-overlay">
@@ -98,13 +86,13 @@ export default function Home() {
             transition={{ delay: 1, duration: 0.8 }}
             className="mt-8 flex flex-wrap items-center gap-3"
           >
-            <a
-              href="#commande"
+            <Link
+              to="/commande"
               data-testid="hero-cta-order"
               className="rounded-full bg-[#D4AF37] text-[#0B0908] px-7 py-3.5 text-sm font-medium tracking-wide hover:bg-[#F3EAD3] transition-colors"
             >
               Commander maintenant
-            </a>
+            </Link>
             <div className="flex flex-wrap gap-2">
               {[
                 { icon: BadgeCheck, label: "Vendeur vérifié" },
@@ -157,34 +145,114 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Checkout */}
-      <section id="commande" className="bg-[#FAF7F2] rounded-t-[2.5rem] relative">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20">
+      {/* Catalogue preview */}
+      {featured.length > 0 && (
+      <section className="bg-[#FAF7F2] rounded-t-[2.5rem] relative py-16 md:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.7 }}
-            className="mb-10"
+            className="flex items-end justify-between gap-6 flex-wrap"
           >
-            <span className="text-xs font-mono-lux uppercase tracking-[0.3em] text-[#C84B67]">Finaliser ma commande</span>
-            <h2 className="font-display text-3xl sm:text-4xl text-[#1A1513] mt-2">Commande Live — L'Atelier des parfums</h2>
-            <div className="hairline w-48 mt-4" style={{ background: "linear-gradient(90deg,#C84B67,transparent)" }} />
+            <div>
+              <span className="text-xs font-mono-lux uppercase tracking-[0.3em] text-[#C84B67]">La Collection</span>
+              <h2 className="font-display text-3xl sm:text-4xl text-[#1A1513] mt-2">Les iconiques de l'atelier</h2>
+            </div>
+            <Link
+              to="/catalogue"
+              data-testid="home-cta-catalogue"
+              className="flex items-center gap-2 text-sm text-[#8C1C35] border-b border-[#C84B67]/40 pb-1 hover:text-[#C84B67] transition-colors"
+            >
+              Voir tout le catalogue <ArrowRight className="h-4 w-4" />
+            </Link>
           </motion.div>
-          <CheckoutForm />
+
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-8">
+            {featured.map((p, i) => (
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, y: 32 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.6, delay: i * 0.1 }}
+                className="group"
+                data-testid={`home-product-${p.id}`}
+              >
+                <div className="relative h-80 rounded-2xl overflow-hidden">
+                  <img src={p.img} alt={p.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                  <span className="absolute bottom-4 left-4 bg-[#0B0908]/85 backdrop-blur text-[#F3EAD3] font-mono-lux text-sm px-4 py-2 rounded-full border border-[#D4AF37]/30">
+                    {formatEUR(p.price)}
+                  </span>
+                </div>
+                <h3 className="font-display text-xl text-[#1A1513] mt-4">{p.name}</h3>
+                <p className="text-xs text-[#6E6763] italic mt-1">{p.notes}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+      )}
+
+      {/* Histoire teaser */}
+      <section className={`bg-[#FAF7F2] pb-20 ${featured.length === 0 ? "rounded-t-[2.5rem] pt-16 md:pt-24" : ""}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 32 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.7 }}
+            className="bg-[#161210] rounded-[2rem] p-8 sm:p-12 gold-border-card grid grid-cols-1 lg:grid-cols-2 gap-10 items-center"
+          >
+            <div>
+              <span className="text-xs font-mono-lux uppercase tracking-[0.3em] text-[#D4AF37]">Notre Histoire</span>
+              <h2 className="font-display text-3xl sm:text-4xl text-[#FAF7F2] mt-3 leading-tight">
+                Une maison née d'un <span className="italic gold-text">amour du sillage</span>
+              </h2>
+              <p className="text-sm text-[#A09891] mt-4 leading-relaxed">
+                Des créations composées dans notre atelier, présentées en direct pendant nos lives,
+                préparées à la main et expédiées en 24h. Authenticité, passion, élégance.
+              </p>
+              <Link
+                to="/histoire"
+                data-testid="home-cta-histoire"
+                className="inline-block mt-6 rounded-full border border-[#D4AF37]/40 text-[#D4AF37] px-6 py-3 text-sm hover:bg-[#D4AF37] hover:text-[#0B0908] transition-colors"
+              >
+                Découvrir notre histoire
+              </Link>
+            </div>
+            <img
+              src="https://images.pexels.com/photos/15096784/pexels-photo-15096784.jpeg?auto=compress&cs=tinysrgb&w=900"
+              alt="L'atelier"
+              className="rounded-2xl object-cover h-72 w-full"
+            />
+          </motion.div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-[#0B0908] border-t border-[#D4AF37]/15 py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <img src="/assets/logo.png" alt="" className="h-9 w-9 object-cover rounded-full border border-[#D4AF37]/40" />
-            <span className="font-display text-[#F3EAD3]">L'Atelier des parfums</span>
-          </div>
-          <p className="text-xs text-[#6E6763]">Authenticité • Passion • Élégance — Paiement sécurisé par Stripe</p>
-        </div>
-      </footer>
+      {/* CTA commande */}
+      <section className="bg-[#0B0908] border-t border-[#D4AF37]/15 py-20 text-center noise-overlay relative">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7 }}
+          className="max-w-2xl mx-auto px-4"
+        >
+          <h2 className="font-display text-3xl sm:text-4xl text-[#FAF7F2]">Prête à commander votre <span className="italic gold-text">parfum du live</span> ?</h2>
+          <p className="text-sm text-[#A09891] mt-4">Référence, montant, livraison, paiement sécurisé : 2 minutes chrono.</p>
+          <Link
+            to="/commande"
+            data-testid="home-cta-commande"
+            className="inline-block mt-8 rounded-full bg-[#D4AF37] text-[#0B0908] px-8 py-4 text-sm font-semibold hover:bg-[#F3EAD3] transition-colors"
+          >
+            Finaliser ma commande
+          </Link>
+        </motion.div>
+      </section>
+
+      <SiteFooter />
     </div>
   );
 }

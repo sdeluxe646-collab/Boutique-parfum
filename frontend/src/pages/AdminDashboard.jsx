@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Euro, CheckCircle2, Clock, ShoppingBag, LogOut, Download, RefreshCw, ChevronDown, Tag, PackagePlus, ExternalLink } from "lucide-react";
+import { Euro, CheckCircle2, Clock, ShoppingBag, LogOut, Download, RefreshCw, ChevronDown, Tag, PackagePlus, ExternalLink, Plus, Trash2, SprayCan, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatEUR } from "@/lib/api";
 
@@ -13,6 +13,10 @@ const STATUS_STYLES = {
 
 export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [productForm, setProductForm] = useState({ name: "", ref: "", price: "", size: "50 ml", notes: "", img: "", desc: "" });
+  const [savingProduct, setSavingProduct] = useState(false);
   const [stats, setStats] = useState(null);
   const [expanded, setExpanded] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,18 +25,51 @@ export default function AdminDashboard() {
   const load = useCallback(async () => {
     try {
       await api.get("/auth/me");
-      const [{ data: o }, { data: s }] = await Promise.all([
+      const [{ data: o }, { data: s }, { data: m }, { data: p }] = await Promise.all([
         api.get("/admin/orders"),
         api.get("/admin/stats"),
+        api.get("/admin/messages"),
+        api.get("/products"),
       ]);
       setOrders(o);
       setStats(s);
+      setMessages(m);
+      setProducts(p);
     } catch {
       navigate("/admin");
     } finally {
       setLoading(false);
     }
   }, [navigate]);
+
+  const addProduct = async (e) => {
+    e.preventDefault();
+    const price = parseFloat(String(productForm.price).replace(",", "."));
+    if (!productForm.name.trim() || !productForm.ref.trim() || !price || price <= 0) {
+      return toast.error("Nom, référence et prix sont obligatoires.");
+    }
+    setSavingProduct(true);
+    try {
+      await api.post("/admin/products", { ...productForm, price });
+      toast.success(`Parfum « ${productForm.name} » ajouté au catalogue`);
+      setProductForm({ name: "", ref: "", price: "", size: "50 ml", notes: "", img: "", desc: "" });
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Impossible d'ajouter le parfum");
+    } finally {
+      setSavingProduct(false);
+    }
+  };
+
+  const deleteProduct = async (id, name) => {
+    try {
+      await api.delete(`/admin/products/${id}`);
+      toast.success(`« ${name} » retiré du catalogue`);
+      load();
+    } catch {
+      toast.error("Impossible de supprimer le parfum");
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -166,6 +203,79 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+
+        <div className="bg-[#161210] rounded-2xl gold-border-card overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#D4AF37]/10 flex items-center justify-between">
+            <h2 className="font-display text-xl flex items-center gap-2"><SprayCan className="h-5 w-5 text-[#D4AF37]" /> Mes parfums (catalogue du site)</h2>
+            <span className="text-xs text-[#6E6763]">{products.length} parfum(s)</span>
+          </div>
+          <form onSubmit={addProduct} className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 border-b border-[#D4AF37]/10" data-testid="form-add-product">
+            <input data-testid="input-product-name" placeholder="Nom du parfum *" value={productForm.name} onChange={(e) => setProductForm((p) => ({ ...p, name: e.target.value }))}
+              className="rounded-xl bg-[#0B0908] border border-[#D4AF37]/25 px-4 py-2.5 text-sm text-[#FAF7F2] placeholder-[#6E6763] outline-none focus:border-[#D4AF37]" />
+            <input data-testid="input-product-ref" placeholder="Référence * (ex: OUD-ROYAL-50ML)" value={productForm.ref} onChange={(e) => setProductForm((p) => ({ ...p, ref: e.target.value }))}
+              className="rounded-xl bg-[#0B0908] border border-[#D4AF37]/25 px-4 py-2.5 text-sm text-[#FAF7F2] placeholder-[#6E6763] outline-none focus:border-[#D4AF37]" />
+            <input data-testid="input-product-price" type="number" step="0.01" min="0" placeholder="Prix € *" value={productForm.price} onChange={(e) => setProductForm((p) => ({ ...p, price: e.target.value }))}
+              className="rounded-xl bg-[#0B0908] border border-[#D4AF37]/25 px-4 py-2.5 text-sm text-[#FAF7F2] placeholder-[#6E6763] outline-none focus:border-[#D4AF37]" />
+            <input data-testid="input-product-size" placeholder="Contenance (ex: 50 ml)" value={productForm.size} onChange={(e) => setProductForm((p) => ({ ...p, size: e.target.value }))}
+              className="rounded-xl bg-[#0B0908] border border-[#D4AF37]/25 px-4 py-2.5 text-sm text-[#FAF7F2] placeholder-[#6E6763] outline-none focus:border-[#D4AF37]" />
+            <input data-testid="input-product-notes" placeholder="Notes (ex: Oud • Safran • Santal)" value={productForm.notes} onChange={(e) => setProductForm((p) => ({ ...p, notes: e.target.value }))}
+              className="rounded-xl bg-[#0B0908] border border-[#D4AF37]/25 px-4 py-2.5 text-sm text-[#FAF7F2] placeholder-[#6E6763] outline-none focus:border-[#D4AF37]" />
+            <input data-testid="input-product-img" placeholder="URL de la photo (https://…)" value={productForm.img} onChange={(e) => setProductForm((p) => ({ ...p, img: e.target.value }))}
+              className="rounded-xl bg-[#0B0908] border border-[#D4AF37]/25 px-4 py-2.5 text-sm text-[#FAF7F2] placeholder-[#6E6763] outline-none focus:border-[#D4AF37]" />
+            <input data-testid="input-product-desc" placeholder="Description courte" value={productForm.desc} onChange={(e) => setProductForm((p) => ({ ...p, desc: e.target.value }))}
+              className="rounded-xl bg-[#0B0908] border border-[#D4AF37]/25 px-4 py-2.5 text-sm text-[#FAF7F2] placeholder-[#6E6763] outline-none focus:border-[#D4AF37] lg:col-span-1" />
+            <button data-testid="button-add-product" type="submit" disabled={savingProduct}
+              className="rounded-xl bg-[#D4AF37] text-[#0B0908] py-2.5 text-sm font-semibold hover:bg-[#F3EAD3] transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+              {savingProduct ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ajouter
+            </button>
+          </form>
+          {products.length === 0 ? (
+            <p className="p-8 text-center text-sm text-[#6E6763]">Aucun parfum pour le moment — ajoutez votre premier parfum ci-dessus, il apparaîtra sur le site.</p>
+          ) : (
+            <ul className="divide-y divide-[#D4AF37]/5" data-testid="list-admin-products">
+              {products.map((p) => (
+                <li key={p.id} className="px-6 py-3.5 flex items-center gap-4" data-testid={`product-row-${p.id.slice(0, 8)}`}>
+                  {p.img ? (
+                    <img src={p.img} alt="" className="h-11 w-11 rounded-lg object-cover border border-[#D4AF37]/25" />
+                  ) : (
+                    <span className="h-11 w-11 rounded-lg bg-[#D4AF37]/10 flex items-center justify-center"><SprayCan className="h-4 w-4 text-[#D4AF37]" /></span>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[#FAF7F2] truncate">{p.name} <span className="text-[#6E6763] text-xs">• {p.size}</span></p>
+                    <p className="font-mono-lux text-[10px] text-[#D4AF37]">{p.ref}</p>
+                  </div>
+                  <span className="font-mono-lux text-sm gold-text font-semibold">{formatEUR(p.price)}</span>
+                  <button data-testid={`btn-delete-product-${p.id.slice(0, 8)}`} onClick={() => deleteProduct(p.id, p.name)}
+                    className="p-2 rounded-full border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors" title="Supprimer">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="bg-[#161210] rounded-2xl gold-border-card overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#D4AF37]/10 flex items-center justify-between">
+            <h2 className="font-display text-xl">Messages de contact</h2>
+            <span className="text-xs text-[#6E6763]">{messages.length} message(s)</span>
+          </div>
+          {messages.length === 0 ? (
+            <p className="p-8 text-center text-sm text-[#6E6763]">Aucun message pour le moment.</p>
+          ) : (
+            <ul className="divide-y divide-[#D4AF37]/5" data-testid="list-admin-messages">
+              {messages.map((m) => (
+                <li key={m.id} className="px-6 py-4" data-testid={`message-${m.id.slice(0, 8)}`}>
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <p className="text-sm text-[#FAF7F2]">{m.name} <span className="text-[#D4AF37] text-xs">• {m.email}</span></p>
+                    <span className="font-mono-lux text-[10px] text-[#6E6763]">{m.created_at?.slice(0, 16).replace("T", " ")}</span>
+                  </div>
+                  <p className="text-xs text-[#A09891] mt-1.5 leading-relaxed">{m.message}</p>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </main>

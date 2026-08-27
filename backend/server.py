@@ -32,9 +32,9 @@ JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
 
 SHIPPING_METHODS = {
-    "chronopost_relais": {"name": "Chronopost Relais Express", "price": 4.90},
-    "chronopost_domicile": {"name": "Chronopost Domicile Express 24h", "price": 8.90},
-    "mondial_relay": {"name": "Mondial Relay Point Relais", "price": 3.90},
+    "chronopost_relais": {"name": "Chronopost Relais Express", "price": 5.99},
+    "chronopost_domicile": {"name": "Chronopost Domicile Express 24h", "price": 9.90},
+    "mondial_relay": {"name": "Mondial Relay Point Relais", "price": 4.99},
     "groupage": {"name": "Colis groupé — port offert", "price": 0.0},
 }
 
@@ -442,6 +442,68 @@ async def create_label(order_id: str, user: dict = Depends(get_current_user)):
         {"$set": {"expedition_num": expedition, "label_url": url}},
     )
     return {"expedition": expedition, "pdf_url": url}
+
+
+# ---------- Products (catalogue géré par l'admin) ----------
+
+class ProductIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    ref: str = Field(min_length=1, max_length=80)
+    price: float = Field(gt=0, le=100000)
+    size: Optional[str] = "50 ml"
+    notes: Optional[str] = ""
+    desc: Optional[str] = ""
+    img: Optional[str] = ""
+
+
+@api_router.get("/products")
+async def list_products():
+    products = await db.products.find().sort("created_at", 1).to_list(200)
+    return [{"id": str(p.pop("_id")), **p} for p in products]
+
+
+@api_router.post("/admin/products")
+async def create_product(req: ProductIn, user: dict = Depends(get_current_user)):
+    doc = {**req.model_dump(), "created_at": datetime.now(timezone.utc).isoformat()}
+    doc["_id"] = str(uuid.uuid4())
+    await db.products.insert_one(doc)
+    doc["id"] = doc.pop("_id")
+    return doc
+
+
+@api_router.delete("/admin/products/{product_id}")
+async def delete_product(product_id: str, user: dict = Depends(get_current_user)):
+    result = await db.products.delete_one({"_id": product_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Produit introuvable")
+    return {"status": "ok"}
+
+
+# ---------- Contact messages ----------
+
+class ContactMessage(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    message: str = Field(min_length=1, max_length=2000)
+
+
+@api_router.post("/contact")
+async def create_contact(req: ContactMessage):
+    doc = {
+        "_id": str(uuid.uuid4()),
+        "name": req.name.strip(),
+        "email": req.email.lower(),
+        "message": req.message.strip(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.contact_messages.insert_one(doc)
+    return {"status": "ok"}
+
+
+@api_router.get("/admin/messages")
+async def admin_messages(user: dict = Depends(get_current_user)):
+    messages = await db.contact_messages.find().sort("created_at", -1).to_list(200)
+    return [{"id": str(m.pop("_id")), **m} for m in messages]
 
 
 # ---------- Admin ----------

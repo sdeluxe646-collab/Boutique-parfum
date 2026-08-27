@@ -13,6 +13,11 @@ Choix utilisateur : formulaire complet type BuyLive, paiement réel Stripe, noti
 - Cliente du live (TikTok/Insta) : règle sa commande avec montant + référence annoncés au live.
 - Admin (boutique) : suit commandes, statuts payé/en attente, export CSV.
 
+## Implémenté (27/08/2026, session 3)
+- Site vitrine complet : Accueil (hero + aperçu collection + teaser histoire + CTA), /catalogue, /histoire, /contact (formulaire → messages visibles dans l'admin), /faq (livraison/retours), /commande (checkout, pré-rempli via ?ref=&montant= depuis le catalogue). Navigation partagée (SiteChrome).
+- Catalogue 100% géré par l'admin : GET /api/products public, POST/DELETE /api/admin/products. Section "Mes parfums" dans le dashboard (nom, référence, prix, contenance, notes, URL photo, description). AUCUN produit d'exemple — catalogue vide, la cliente ajoute les siens.
+- Tarifs livraison réels : Mondial Relay 4,99 €, Chronopost Relais 5,99 €, Chronopost Domicile 9,90 € (frontend + backend + FAQ).
+
 ## Implémenté (27/08/2026, session 2)
 - Regroupement de commandes : si l'e-mail a une commande payée/en attente (< 7 jours) avec livraison, option "Ajouter à mon colis en cours — port offert" à l'étape 2 (GET /api/orders/group-eligibility, shipping_method "groupage", group_id lie à la commande de base, badge "Groupé" dans l'admin).
 - Mondial Relay : recherche de points relais (WSI4 SOAP) dans le checkout, génération d'étiquette PDF depuis l'admin (WSI2_CreationEtiquette, bouton "Générer étiquette" sur commandes payées Mondial Relay, n° de suivi + lien PDF stockés sur la commande). Identifiants de test officiels BDTEST13/TestAPI1key en env.

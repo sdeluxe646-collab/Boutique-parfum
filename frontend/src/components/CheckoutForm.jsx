@@ -1,13 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Package, Truck, Store, CreditCard, Loader2, ShoppingCart, Calculator, PackagePlus, MapPin, Search } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError, formatEUR } from "@/lib/api";
 
 const SHIPPING = [
-  { id: "chronopost_relais", name: "Chronopost Relais Express", time: "Livraison 24h en Point Relais", price: 4.9, badge: "Recommandé Live", icon: Package, testid: "shipping-chronopost-relais" },
-  { id: "chronopost_domicile", name: "Chronopost Domicile Express 24h", time: "Remise en main propre contre signature", price: 8.9, badge: "Express", icon: Truck, testid: "shipping-chronopost-domicile" },
-  { id: "mondial_relay", name: "Mondial Relay Point Relais", time: "Livraison sous 3 à 5 jours ouvrés", price: 3.9, badge: "Économique", icon: Store, testid: "shipping-mondial-relay" },
+  { id: "chronopost_relais", name: "Chronopost Relais Express", time: "Livraison 24h en Point Relais", price: 5.99, badge: "Recommandé Live", icon: Package, testid: "shipping-chronopost-relais" },
+  { id: "chronopost_domicile", name: "Chronopost Domicile Express 24h", time: "Remise en main propre contre signature", price: 9.9, badge: "Express", icon: Truck, testid: "shipping-chronopost-domicile" },
+  { id: "mondial_relay", name: "Mondial Relay Point Relais", time: "Livraison sous 3 à 5 jours ouvrés", price: 4.99, badge: "Économique", icon: Store, testid: "shipping-mondial-relay" },
 ];
 
 const GROUPAGE_OPTION = { id: "groupage", name: "Ajouter à mon colis en cours", time: "Regroupé avec votre commande précédente", price: 0, badge: "Port offert", icon: PackagePlus, testid: "shipping-groupage" };
@@ -38,6 +39,16 @@ export default function CheckoutForm() {
   const [selectedRelay, setSelectedRelay] = useState(null);
   const [relayLoading, setRelayLoading] = useState(false);
   const [relayManual, setRelayManual] = useState(false);
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    const montant = searchParams.get("montant");
+    if (ref || montant) {
+      setForm((f) => ({ ...f, reference: ref || f.reference, amount: montant || f.amount }));
+      if (ref) toast.success(`Référence ${ref} pré-remplie — complétez vos coordonnées.`);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
