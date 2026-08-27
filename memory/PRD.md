@@ -13,6 +13,10 @@ Choix utilisateur : formulaire complet type BuyLive, paiement réel Stripe, noti
 - Cliente du live (TikTok/Insta) : règle sa commande avec montant + référence annoncés au live.
 - Admin (boutique) : suit commandes, statuts payé/en attente, export CSV.
 
+## Implémenté (27/08/2026, session 4)
+- Emails transactionnels (Resend géré Emergent) : confirmation cliente + alerte admin (Latelierparfum@gmail.com) à chaque passage "paid" (webhook Stripe, poll statut, ou marquage manuel admin) via helper mark_order_paid idempotent (anti-doublon). Templates noir & or FR, gate G2/G3 du playbook appliqué.
+- Point relais manuel toujours visible dans le checkout (compte test MR désactivé, STAT 95) — recherche auto prête à réactiver avec les identifiants pro.
+
 ## Implémenté (27/08/2026, session 3)
 - Site vitrine complet : Accueil (hero + aperçu collection + teaser histoire + CTA), /catalogue, /histoire, /contact (formulaire → messages visibles dans l'admin), /faq (livraison/retours), /commande (checkout, pré-rempli via ?ref=&montant= depuis le catalogue). Navigation partagée (SiteChrome).
 - Catalogue 100% géré par l'admin : GET /api/products public, POST/DELETE /api/admin/products. Section "Mes parfums" dans le dashboard (nom, référence, prix, contenance, notes, URL photo, description). AUCUN produit d'exemple — catalogue vide, la cliente ajoute les siens.

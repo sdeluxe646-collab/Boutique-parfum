@@ -8,8 +8,13 @@ import bcrypt
 import jwt
 import stripe
 import httpx
+import re
+import ipaddress
 import xml.etree.ElementTree as ET
 from hashlib import md5
+from html import escape as html_escape
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 from xml.sax.saxutils import escape
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
@@ -76,6 +81,176 @@ def mr_child(node: ET.Element, name: str) -> str:
     return ""
 
 logger = logging.getLogger(__name__)
+
+
+# ---------- Emails (Resend via Emergent) ----------
+
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
+EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
+EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
+ADMIN_NOTIFY_EMAIL = os.environ.get("ADMIN_NOTIFY_EMAIL")
+SITE_URL = os.environ.get("SITE_URL", "")
+
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan()
+    scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
+
+
+async def send_email(*, to: str, subject: str, html: str) -> None:
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    if EMAIL_REPLY_TO:
+        payload["contact_email"] = EMAIL_REPLY_TO
+    async with httpx.AsyncClient(timeout=30) as client_http:
+        resp = await client_http.post(
+            f"{EMAIL_BASE_URL}/api/v1/email/send",
+            headers={"X-Email-Key": EMAIL_KEY},
+            json=payload,
+        )
+    resp.raise_for_status()
+    logger.info(f"Email envoyé à {to} : {resp.json().get('id')}")
+
+
+def _eur(amount) -> str:
+    return f"{amount:.2f} €".replace(".", ",")
+
+
+def _customer_paid_html(order: dict) -> str:
+    relay = f'<p style="margin:4px 0"><strong>Point Relais :</strong> {html_escape(order.get("relay_name") or "")}</p>' if order.get("relay_name") else ""
+    return (
+        '<table role="presentation" width="100%" style="background:#0B0908;padding:32px 0">'
+        '<tr><td align="center"><table role="presentation" width="560" style="background:#161210;border:1px solid #D4AF37;border-radius:16px;padding:32px;font-family:Georgia,serif">'
+        f'<tr><td><h1 style="color:#D4AF37;font-size:24px;margin:0 0 8px">Merci {html_escape(order["firstname"])} !</h1>'
+        '<p style="color:#B9B0A6;font-size:14px;line-height:1.6;margin:0 0 16px">Votre commande est confirmée et payée. '
+        "L'Atelier des parfums prépare votre envoi avec soin.</p>"
+        '<table role="presentation" width="100%" style="border-top:1px solid #D4AF37;border-bottom:1px solid #D4AF37;padding:12px 0;color:#F3EAD3;font-size:14px">'
+        f'<tr><td style="padding:12px 0"><p style="margin:4px 0"><strong>Référence :</strong> {html_escape(order["reference"])}</p>'
+        f'<p style="margin:4px 0"><strong>Livraison :</strong> {html_escape(order["shipping_name"])}</p>'
+        f"{relay}"
+        f'<p style="margin:4px 0"><strong>Total payé :</strong> <span style="color:#D4AF37">{_eur(order["total"])}</span></p></td></tr></table>'
+        '<p style="color:#6E6763;font-size:12px;line-height:1.6;margin:16px 0 0">Vous recevrez le numéro de suivi dès l\'expédition. '
+        "Authenticité • Passion • Élégance — L'Atelier des parfums. "
+        'Nous ne demandons jamais vos mots de passe ou données bancaires par e-mail.</p>'
+        "</td></tr></table></td></tr></table>"
+    )
+
+
+def _admin_paid_html(order: dict) -> str:
+    relay = f'<p style="margin:4px 0"><strong>Point Relais :</strong> {html_escape(order.get("relay_name") or "")}</p>' if order.get("relay_name") else ""
+    grouped = '<p style="margin:4px 0;color:#047857"><strong>⚠ Colis groupé</strong> — à expédier avec la commande précédente</p>' if order.get("group_id") else ""
+    return (
+        '<table role="presentation" width="100%" style="background:#FAF7F2;padding:32px 0">'
+        '<tr><td align="center"><table role="presentation" width="560" style="background:#ffffff;border:1px solid #D4AF37;border-radius:16px;padding:32px;font-family:Arial,sans-serif">'
+        f'<tr><td><h1 style="color:#8C1C35;font-size:20px;margin:0 0 12px">Nouvelle commande payée</h1>'
+        f'<p style="font-size:14px;color:#1A1513;margin:4px 0"><strong>{html_escape(order["firstname"])} {html_escape(order["lastname"])}</strong> ({html_escape(order["email"])}, {html_escape(order["phone"])})</p>'
+        f'<p style="font-size:14px;color:#1A1513;margin:4px 0"><strong>Référence :</strong> {html_escape(order["reference"])} — <strong>Total :</strong> {_eur(order["total"])}</p>'
+        f'<p style="font-size:14px;color:#1A1513;margin:4px 0"><strong>Livraison :</strong> {html_escape(order["shipping_name"])}</p>'
+        f"{relay}{grouped}"
+        f'<p style="font-size:14px;color:#1A1513;margin:4px 0"><strong>Adresse :</strong> {html_escape(order["address"])}, {html_escape(order["postal_code"])} {html_escape(order["city"])}</p>'
+        f'<p style="margin:20px 0 0"><a href="{html_escape(SITE_URL)}/admin" style="background:#D4AF37;color:#0B0908;padding:12px 24px;border-radius:24px;text-decoration:none;font-size:14px">Voir le tableau de bord</a></p>'
+        '<p style="font-size:12px;color:#6E6763;margin:16px 0 0">L\'Atelier des parfums — notification automatique.</p>'
+        "</td></tr></table></td></tr></table>"
+    )
+
+
+async def send_paid_emails(order: dict) -> None:
+    try:
+        await send_email(
+            to=order["email"],
+            subject=f"Commande confirmée — {order['reference']} | L'Atelier des parfums",
+            html=_customer_paid_html(order),
+        )
+        if ADMIN_NOTIFY_EMAIL:
+            await send_email(
+                to=ADMIN_NOTIFY_EMAIL,
+                subject=f"💰 Commande payée {order['total']:.2f} € — {order['reference']}",
+                html=_admin_paid_html(order),
+            )
+    except Exception as exc:
+        logger.error(f"Échec envoi emails commande {order.get('_id')}: {exc}")
+
+
+async def mark_order_paid(filter_query: dict) -> Optional[dict]:
+    """Marque payée une seule fois ; envoie les emails si transition réelle."""
+    result = await db.orders.update_one(
+        {**filter_query, "payment_status": {"$ne": "paid"}},
+        {"$set": {"payment_status": "paid", "paid_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if result.modified_count:
+        order = await db.orders.find_one(filter_query)
+        if order:
+            await send_paid_emails(order)
+            return order
+    return None
 
 
 # ---------- Auth ----------
@@ -310,11 +485,9 @@ async def payment_status(session_id: str):
         try:
             s = stripe.checkout.Session.retrieve(session_id)
             if s.payment_status == "paid" or s.status == "complete":
-                await db.orders.update_one(
-                    {"stripe_session_id": session_id, "payment_status": {"$ne": "paid"}},
-                    {"$set": {"payment_status": "paid", "paid_at": datetime.now(timezone.utc).isoformat()}},
-                )
-                order["payment_status"] = "paid"
+                updated = await mark_order_paid({"stripe_session_id": session_id})
+                if updated:
+                    order["payment_status"] = "paid"
         except stripe.error.StripeError:
             pass
     return {"session_id": session_id, "payment_status": order["payment_status"], "total": order["total"]}
@@ -330,10 +503,7 @@ async def stripe_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Signature invalide")
     obj, t = event["data"]["object"], event["type"]
     if t in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
-        await db.orders.update_one(
-            {"stripe_session_id": obj["id"], "payment_status": {"$ne": "paid"}},
-            {"$set": {"payment_status": "paid", "paid_at": datetime.now(timezone.utc).isoformat()}},
-        )
+        await mark_order_paid({"stripe_session_id": obj["id"]})
     elif t in ("checkout.session.expired", "checkout.session.async_payment_failed"):
         await db.orders.update_one(
             {"stripe_session_id": obj["id"]},
@@ -543,7 +713,10 @@ async def admin_update_status(order_id: str, req: StatusUpdate, user: dict = Dep
         raise HTTPException(status_code=400, detail="Statut invalide")
     update = {"payment_status": req.payment_status}
     if req.payment_status == "paid":
-        update["paid_at"] = datetime.now(timezone.utc).isoformat()
+        updated = await mark_order_paid({"_id": order_id})
+        if not updated and not await db.orders.find_one({"_id": order_id}):
+            raise HTTPException(status_code=404, detail="Commande introuvable")
+        return {"status": "ok"}
     result = await db.orders.update_one({"_id": order_id}, {"$set": update})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Commande introuvable")
