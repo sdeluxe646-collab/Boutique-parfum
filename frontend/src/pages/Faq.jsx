@@ -6,8 +6,8 @@ import { SiteNav, SiteFooter } from "@/components/SiteChrome";
 
 const FAQS = [
   {
-    q: "Quels sont les modes et tarifs de livraison ?",
-    a: "Chronopost Relais Express 24h : 5,99 € — Chronopost Domicile Express 24h (contre signature) : 9,90 € — Mondial Relay Point Relais (3 à 5 jours ouvrés) : 4,99 €. Toute commande payée avant 15h est expédiée le jour même depuis notre atelier.",
+    q: "Quels sont le mode et le tarif de livraison ?",
+    a: "Toutes nos commandes sont expédiées via Mondial Relay en Point Relais (3 à 5 jours ouvrés) : 4,99 €. Vous choisissez votre point relais directement dans le formulaire de commande et vous recevez le numéro de suivi par e-mail dès l'expédition.",
   },
   {
     q: "J'ai commandé plusieurs fois pendant un live, vais-je payer les frais de port à chaque fois ?",
@@ -15,7 +15,7 @@ const FAQS = [
   },
   {
     q: "Comment suivre mon colis ?",
-    a: "Dès l'expédition, vous recevez votre numéro de suivi par e-mail. Pour les envois Mondial Relay, le suivi est disponible sur mondialrelay.fr ; pour Chronopost, sur chronopost.fr.",
+    a: "Dès l'expédition, vous recevez votre numéro de suivi par e-mail. Le suivi est disponible sur mondialrelay.fr.",
   },
   {
     q: "Puis-je retourner un parfum ?",

@@ -31,8 +31,8 @@ export default function Histoire() {
                 notre signature — et votre confiance, notre plus belle récompense.
               </p>
               <p>
-                Chaque commande est préparée à la main, emballée avec soin et expédiée en 24h via Chronopost
-                ou Mondial Relay.
+                Chaque commande est préparée à la main, emballée avec soin et expédiée
+                via Mondial Relay en Point Relais.
               </p>
             </div>
             <Link

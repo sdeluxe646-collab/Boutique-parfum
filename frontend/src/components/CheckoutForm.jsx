@@ -6,9 +6,7 @@ import { toast } from "sonner";
 import { api, formatApiError, formatEUR } from "@/lib/api";
 
 const SHIPPING = [
-  { id: "chronopost_relais", name: "Chronopost Relais Express", time: "Livraison 24h en Point Relais", price: 5.99, badge: "Recommandé Live", icon: Package, testid: "shipping-chronopost-relais" },
-  { id: "chronopost_domicile", name: "Chronopost Domicile Express 24h", time: "Remise en main propre contre signature", price: 9.9, badge: "Express", icon: Truck, testid: "shipping-chronopost-domicile" },
-  { id: "mondial_relay", name: "Mondial Relay Point Relais", time: "Livraison sous 3 à 5 jours ouvrés", price: 4.99, badge: "Économique", icon: Store, testid: "shipping-mondial-relay" },
+  { id: "mondial_relay", name: "Mondial Relay Point Relais", time: "Livraison sous 3 à 5 jours ouvrés", price: 4.99, badge: "Point Relais", icon: Store, testid: "shipping-mondial-relay" },
 ];
 
 const GROUPAGE_OPTION = { id: "groupage", name: "Ajouter à mon colis en cours", time: "Regroupé avec votre commande précédente", price: 0, badge: "Port offert", icon: PackagePlus, testid: "shipping-groupage" };
@@ -31,7 +29,7 @@ export default function CheckoutForm() {
     amount: "", reference: "", pseudo: "", firstname: "", lastname: "",
     email: "", phone: "", address: "", postal_code: "", city: "", country: "France",
   });
-  const [shipping, setShipping] = useState("chronopost_relais");
+  const [shipping, setShipping] = useState("mondial_relay");
   const [cgv, setCgv] = useState(false);
   const [loading, setLoading] = useState(false);
   const [groupEligible, setGroupEligible] = useState(null);

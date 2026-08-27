@@ -32,8 +32,6 @@ JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
 
 SHIPPING_METHODS = {
-    "chronopost_relais": {"name": "Chronopost Relais Express", "price": 5.99},
-    "chronopost_domicile": {"name": "Chronopost Domicile Express 24h", "price": 9.90},
     "mondial_relay": {"name": "Mondial Relay Point Relais", "price": 4.99},
     "groupage": {"name": "Colis groupé — port offert", "price": 0.0},
 }

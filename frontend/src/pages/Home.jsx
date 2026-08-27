@@ -22,14 +22,14 @@ const MARQUEE_ITEMS = [
   "Haute Parfumerie",
   "Live Shopping",
   "Paiement Sécurisé Stripe",
-  "Chronopost 24h",
-  "Mondial Relay",
+  "Mondial Relay Point Relais",
+  "Port Offert Colis Groupé",
   "Authenticité • Passion • Élégance",
 ];
 
 const CHAPTERS = [
   { num: "01", title: "Choisissez en direct", text: "Repérez votre référence pendant le live et notez le montant annoncé." },
-  { num: "02", title: "Réglez en un instant", text: "Formulaire rapide, livraison Chronopost ou Mondial Relay, paiement carte bancaire via Stripe." },
+  { num: "02", title: "Réglez en un instant", text: "Formulaire rapide, livraison Mondial Relay en Point Relais, paiement carte bancaire via Stripe." },
   { num: "03", title: "Recevez votre parfum", text: "Expédition soignée depuis notre atelier, suivi de commande par e-mail." },
 ];
 
@@ -76,8 +76,8 @@ export default function Home() {
             transition={{ delay: 0.85, duration: 0.8 }}
             className="mt-6 max-w-xl text-sm sm:text-base text-[#B9B0A6] leading-relaxed"
           >
-            Finalisez votre commande en direct de L'Atelier des parfums. Expédition express
-            Chronopost &amp; Mondial Relay, paiement 100% sécurisé par carte bancaire.
+            Finalisez votre commande en direct de L'Atelier des parfums. Livraison
+            Mondial Relay en Point Relais, paiement 100% sécurisé par carte bancaire.
           </motion.p>
 
           <motion.div
