@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Package, Truck, Store, CreditCard, Loader2, ShoppingCart, Calculator } from "lucide-react";
+import { Package, Truck, Store, CreditCard, Loader2, ShoppingCart, Calculator, PackagePlus, MapPin, Search } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError, formatEUR } from "@/lib/api";
 
@@ -9,6 +9,8 @@ const SHIPPING = [
   { id: "chronopost_domicile", name: "Chronopost Domicile Express 24h", time: "Remise en main propre contre signature", price: 8.9, badge: "Express", icon: Truck, testid: "shipping-chronopost-domicile" },
   { id: "mondial_relay", name: "Mondial Relay Point Relais", time: "Livraison sous 3 à 5 jours ouvrés", price: 3.9, badge: "Économique", icon: Store, testid: "shipping-mondial-relay" },
 ];
+
+const GROUPAGE_OPTION = { id: "groupage", name: "Ajouter à mon colis en cours", time: "Regroupé avec votre commande précédente", price: 0, badge: "Port offert", icon: PackagePlus, testid: "shipping-groupage" };
 
 const StepBadge = ({ children }) => (
   <span className="text-xs font-mono-lux uppercase tracking-[0.2em] text-[#C84B67] bg-[#FDF2F4] px-3 py-1 rounded-full font-semibold">
@@ -31,11 +33,52 @@ export default function CheckoutForm() {
   const [shipping, setShipping] = useState("chronopost_relais");
   const [cgv, setCgv] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [groupEligible, setGroupEligible] = useState(null);
+  const [relays, setRelays] = useState([]);
+  const [selectedRelay, setSelectedRelay] = useState(null);
+  const [relayLoading, setRelayLoading] = useState(false);
+  const [relayManual, setRelayManual] = useState(false);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const checkGroupEligibility = async () => {
+    const email = form.email.trim();
+    if (!email || !email.includes("@")) return;
+    try {
+      const { data } = await api.get(`/orders/group-eligibility?email=${encodeURIComponent(email)}`);
+      setGroupEligible(data.eligible ? data : null);
+      if (data.eligible) {
+        toast.success(`Commande en cours trouvée (${data.reference}) — vous pouvez regrouper sans frais de port !`);
+      }
+    } catch { /* silent */ }
+  };
+
+  const searchRelays = async () => {
+    if (!form.postal_code.trim()) return toast.error("Indiquez d'abord votre code postal (étape 1).");
+    setRelayLoading(true);
+    setRelays([]);
+    setSelectedRelay(null);
+    setRelayManual(false);
+    try {
+      const { data } = await api.post("/relay-points", { postcode: form.postal_code.trim(), country: "FR" });
+      if (!data.length) {
+        toast.error("Aucun Point Relais trouvé — indiquez votre point relais préféré ci-dessous.");
+        setRelayManual(true);
+        return;
+      }
+      setRelays(data);
+    } catch {
+      toast.error("Recherche indisponible — indiquez votre point relais préféré ci-dessous.");
+      setRelayManual(true);
+    } finally {
+      setRelayLoading(false);
+    }
+  };
+
+  const shippingOptions = groupEligible ? [...SHIPPING, GROUPAGE_OPTION] : SHIPPING;
+
   const amount = parseFloat(String(form.amount).replace(",", ".")) || 0;
-  const shippingCost = useMemo(() => SHIPPING.find((s) => s.id === shipping)?.price ?? 0, [shipping]);
+  const shippingCost = useMemo(() => shippingOptions.find((s) => s.id === shipping)?.price ?? 0, [shipping, shippingOptions]);
   const total = Math.round((amount + shippingCost) * 100) / 100;
 
   const submit = async () => {
@@ -44,6 +87,7 @@ export default function CheckoutForm() {
     for (const k of ["firstname", "lastname", "email", "phone", "address", "postal_code", "city"]) {
       if (!form[k].trim()) return toast.error("Veuillez compléter toutes vos coordonnées.");
     }
+    if (shipping === "mondial_relay" && !selectedRelay) return toast.error("Veuillez choisir votre Point Relais Mondial Relay.");
     if (!cgv) return toast.error("Veuillez accepter les Conditions Générales de Vente.");
 
     setLoading(true);
@@ -53,6 +97,13 @@ export default function CheckoutForm() {
         amount,
         shipping_method: shipping,
         cgv_accepted: cgv,
+        relay_id: selectedRelay?.id || null,
+        relay_name: selectedRelay
+          ? selectedRelay.id === "MANUEL"
+            ? selectedRelay.name
+            : `${selectedRelay.name} — ${selectedRelay.address}, ${selectedRelay.postcode} ${selectedRelay.city}`
+          : null,
+        relay_address: selectedRelay && selectedRelay.id !== "MANUEL" ? `${selectedRelay.address}, ${selectedRelay.postcode} ${selectedRelay.city}` : null,
       });
       const { data: checkout } = await api.post("/payments/checkout", {
         order_id: order.id,
@@ -101,7 +152,15 @@ export default function CheckoutForm() {
             </div>
             <Field label="Prénom" testid="input-firstname" placeholder="Marine" value={form.firstname} onChange={set("firstname")} />
             <Field label="Nom" testid="input-lastname" placeholder="Dupont" value={form.lastname} onChange={set("lastname")} />
-            <Field label="Adresse e-mail" testid="input-email" type="email" placeholder="marine@example.com" value={form.email} onChange={set("email")} />
+            <label className="block">
+              <span className="block text-xs uppercase tracking-[0.12em] text-[#6E6763] mb-1.5">Adresse e-mail</span>
+              <input data-testid="input-email" type="email" placeholder="marine@example.com" value={form.email} onChange={set("email")} onBlur={checkGroupEligibility} className="lux-input" />
+              {groupEligible && (
+                <span className="block mt-1.5 text-xs text-emerald-700" data-testid="group-eligible-hint">
+                  ✓ Colis en cours trouvé — l'option "port offert" est disponible à l'étape 2
+                </span>
+              )}
+            </label>
             <Field label="Numéro de téléphone" testid="input-phone" type="tel" placeholder="+33 6 12 34 56 78" value={form.phone} onChange={set("phone")} />
             <div className="sm:col-span-2">
               <Field label="Adresse" testid="input-address" placeholder="12 Rue de la Paix" value={form.address} onChange={set("address")} />
@@ -127,7 +186,7 @@ export default function CheckoutForm() {
         >
           <StepBadge>Étape 2 — Mode de livraison</StepBadge>
           <div className="mt-6 grid grid-cols-1 gap-3">
-            {SHIPPING.map((s) => {
+            {shippingOptions.map((s) => {
               const active = shipping === s.id;
               const Icon = s.icon;
               return (
@@ -146,15 +205,74 @@ export default function CheckoutForm() {
                   <span className="flex-1">
                     <span className="flex items-center gap-2">
                       <span className="font-medium text-[#1A1513]">{s.name}</span>
-                      <span className="text-[10px] uppercase tracking-wider bg-[#F3EAD3] text-[#8C1C35] px-2 py-0.5 rounded-full">{s.badge}</span>
+                      <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${s.id === "groupage" ? "bg-emerald-100 text-emerald-800" : "bg-[#F3EAD3] text-[#8C1C35]"}`}>{s.badge}</span>
                     </span>
                     <span className="block text-xs text-[#6E6763] mt-0.5">{s.time}</span>
                   </span>
-                  <span className="font-mono-lux font-semibold text-[#1A1513]">{formatEUR(s.price)}</span>
+                  <span className="font-mono-lux font-semibold text-[#1A1513]">{s.price === 0 ? "Offert" : formatEUR(s.price)}</span>
                 </button>
               );
             })}
           </div>
+
+          {shipping === "mondial_relay" && (
+            <div className="mt-5 rounded-2xl border border-[#EBE5DB] bg-[#FAF7F2] p-5" data-testid="relay-picker">
+              <p className="text-xs uppercase tracking-[0.15em] text-[#6E6763] mb-3 flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-[#C84B67]" /> Choisissez votre Point Relais
+              </p>
+              <div className="flex gap-2">
+                <input
+                  data-testid="input-relay-postcode"
+                  className="lux-input flex-1" placeholder="Code postal (ex : 75002)"
+                  value={form.postal_code} onChange={set("postal_code")}
+                />
+                <button
+                  type="button" data-testid="button-search-relays" onClick={searchRelays} disabled={relayLoading}
+                  className="rounded-xl bg-[#1A1513] text-[#D4AF37] px-4 py-2 text-sm flex items-center gap-2 hover:bg-black transition-colors disabled:opacity-60"
+                >
+                  {relayLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  Rechercher
+                </button>
+              </div>
+              {relays.length > 0 && (
+                <div className="mt-4 max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {relays.map((r) => (
+                    <button
+                      key={r.id} type="button"
+                      data-testid={`relay-option-${r.id}`}
+                      onClick={() => setSelectedRelay(r)}
+                      className={`block w-full text-left rounded-xl border p-3 text-sm transition-colors ${
+                        selectedRelay?.id === r.id ? "border-[#C84B67] bg-white" : "border-[#EBE5DB] bg-white/60 hover:border-[#D4AF37]/60"
+                      }`}
+                    >
+                      <span className="font-medium text-[#1A1513]">{r.name || `Point Relais ${r.id}`}</span>
+                      <span className="block text-xs text-[#6E6763]">{r.address}, {r.postcode} {r.city}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedRelay && (
+                <p className="mt-3 text-xs text-emerald-700" data-testid="relay-selected-hint">
+                  ✓ Point Relais sélectionné : {selectedRelay.name} ({selectedRelay.city})
+                </p>
+              )}
+              {relayManual && (
+                <label className="block mt-4">
+                  <span className="block text-xs uppercase tracking-[0.12em] text-[#6E6763] mb-1.5">Votre Point Relais préféré (nom + adresse)</span>
+                  <input
+                    data-testid="input-relay-manual"
+                    className="lux-input" placeholder="ex : Relais Pickup Carrefour, 12 Rue des Lilas, Lyon"
+                    value={form.relay_manual || ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setForm((f) => ({ ...f, relay_manual: v }));
+                      setSelectedRelay(v.trim() ? { id: "MANUEL", name: v.trim(), address: "", postcode: form.postal_code, city: form.city } : null);
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+          )}
         </motion.section>
 
         {/* ÉTAPE 3 */}

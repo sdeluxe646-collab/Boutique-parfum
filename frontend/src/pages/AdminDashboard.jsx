@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Euro, CheckCircle2, Clock, ShoppingBag, LogOut, Download, RefreshCw, ChevronDown } from "lucide-react";
+import { Euro, CheckCircle2, Clock, ShoppingBag, LogOut, Download, RefreshCw, ChevronDown, Tag, PackagePlus, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatEUR } from "@/lib/api";
 
@@ -43,6 +43,17 @@ export default function AdminDashboard() {
       load();
     } catch {
       toast.error("Impossible de mettre à jour la commande");
+    }
+  };
+
+  const generateLabel = async (id) => {
+    try {
+      const { data } = await api.post(`/admin/orders/${id}/label`);
+      toast.success(`Étiquette générée — n° ${data.expedition}`);
+      if (data.pdf_url) window.open(data.pdf_url, "_blank");
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Impossible de générer l'étiquette");
     }
   };
 
@@ -148,7 +159,8 @@ export default function AdminDashboard() {
                     return (
                       <FragmentRow key={o.id} o={o} st={st} isOpen={isOpen}
                         onToggle={() => setExpanded(isOpen ? null : o.id)}
-                        onMarkPaid={() => markPaid(o.id)} />
+                        onMarkPaid={() => markPaid(o.id)}
+                        onLabel={() => generateLabel(o.id)} />
                     );
                   })}
                 </tbody>
@@ -161,7 +173,7 @@ export default function AdminDashboard() {
   );
 }
 
-function FragmentRow({ o, st, isOpen, onToggle, onMarkPaid }) {
+function FragmentRow({ o, st, isOpen, onToggle, onMarkPaid, onLabel }) {
   return (
     <>
       <tr className="border-b border-[#D4AF37]/5 hover:bg-white/[0.02] cursor-pointer" onClick={onToggle} data-testid={`order-row-${o.id.slice(0, 8)}`}>
@@ -171,7 +183,14 @@ function FragmentRow({ o, st, isOpen, onToggle, onMarkPaid }) {
           {o.pseudo && <p className="text-xs text-[#D4AF37]">{o.pseudo}</p>}
         </td>
         <td className="px-4 py-4 font-mono-lux text-xs">{o.reference}</td>
-        <td className="px-4 py-4 text-xs text-[#A09891]">{o.shipping_name}</td>
+        <td className="px-4 py-4 text-xs text-[#A09891]">
+          {o.shipping_name}
+          {o.group_id && (
+            <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-full px-2 py-0.5">
+              <PackagePlus className="h-3 w-3" /> Groupé
+            </span>
+          )}
+        </td>
         <td className="px-4 py-4 text-right font-mono-lux font-semibold">{formatEUR(o.total)}</td>
         <td className="px-4 py-4">
           <span className={`text-xs border rounded-full px-3 py-1 ${st.cls}`} data-testid={`status-${o.id.slice(0, 8)}`}>{st.label}</span>
@@ -185,6 +204,15 @@ function FragmentRow({ o, st, isOpen, onToggle, onMarkPaid }) {
                 className="text-xs rounded-full border border-emerald-500/40 text-emerald-400 px-3 py-1.5 hover:bg-emerald-500/10"
               >
                 Marquer payée
+              </button>
+            )}
+            {o.payment_status === "paid" && o.shipping_method === "mondial_relay" && o.relay_id && (
+              <button
+                data-testid={`btn-label-${o.id.slice(0, 8)}`}
+                onClick={(e) => { e.stopPropagation(); onLabel(); }}
+                className="text-xs rounded-full border border-[#D4AF37]/40 text-[#D4AF37] px-3 py-1.5 hover:bg-[#D4AF37]/10 flex items-center gap-1.5"
+              >
+                <Tag className="h-3 w-3" /> {o.label_url ? "Étiquette" : "Générer étiquette"}
               </button>
             )}
             <ChevronDown className={`h-4 w-4 text-[#6E6763] transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -201,14 +229,26 @@ function FragmentRow({ o, st, isOpen, onToggle, onMarkPaid }) {
                 <p>{o.phone}</p>
               </div>
               <div>
-                <p className="text-[#6E6763] uppercase tracking-widest mb-1">Adresse de livraison</p>
+                <p className="text-[#6E6763] uppercase tracking-widest mb-1">Livraison</p>
                 <p>{o.address}</p>
                 <p>{o.postal_code} {o.city}, {o.country}</p>
+                {o.relay_name && <p className="text-[#D4AF37] mt-1">Point Relais : {o.relay_name}</p>}
+                {o.group_id && <p className="text-emerald-400 mt-1">↳ Regroupée dans le colis de la commande précédente</p>}
               </div>
               <div>
                 <p className="text-[#6E6763] uppercase tracking-widest mb-1">Détail montants</p>
-                <p>Articles : {formatEUR(o.amount)} — Livraison : {formatEUR(o.shipping_cost)}</p>
+                <p>Articles : {formatEUR(o.amount)} — Livraison : {o.shipping_cost === 0 ? "Offerte" : formatEUR(o.shipping_cost)}</p>
                 <p className="text-[#D4AF37] font-mono-lux">Total : {formatEUR(o.total)}</p>
+                {o.expedition_num && (
+                  <p className="mt-1">
+                    Suivi : <span className="font-mono-lux text-emerald-400">{o.expedition_num}</span>{" "}
+                    {o.label_url && (
+                      <a href={o.label_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline text-[#D4AF37]" data-testid={`label-link-${o.id.slice(0, 8)}`}>
+                        PDF <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
           </td>

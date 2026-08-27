@@ -13,6 +13,12 @@ Choix utilisateur : formulaire complet type BuyLive, paiement réel Stripe, noti
 - Cliente du live (TikTok/Insta) : règle sa commande avec montant + référence annoncés au live.
 - Admin (boutique) : suit commandes, statuts payé/en attente, export CSV.
 
+## Implémenté (27/08/2026, session 2)
+- Regroupement de commandes : si l'e-mail a une commande payée/en attente (< 7 jours) avec livraison, option "Ajouter à mon colis en cours — port offert" à l'étape 2 (GET /api/orders/group-eligibility, shipping_method "groupage", group_id lie à la commande de base, badge "Groupé" dans l'admin).
+- Mondial Relay : recherche de points relais (WSI4 SOAP) dans le checkout, génération d'étiquette PDF depuis l'admin (WSI2_CreationEtiquette, bouton "Générer étiquette" sur commandes payées Mondial Relay, n° de suivi + lien PDF stockés sur la commande). Identifiants de test officiels BDTEST13/TestAPI1key en env.
+- BLOCAGE : le compte de test public BDTEST13 renvoie STAT 95 "Compte Enseigne non activé" (désactivé côté Mondial Relay — vérifié, le hash est correct car pas d'erreur 97). En attente des vrais identifiants marchands (Code Enseigne + Clé Privée) à mettre dans backend/.env (MR_ENSEIGNE / MR_PRIVATE_KEY + adresse expéditeur MR_SENDER_*).
+- Fallback checkout : si la recherche de relais échoue, champ manuel "Point Relais préféré" (relay_id=MANUEL, étiquette non générable pour ceux-là).
+
 ## Implémenté (27/08/2026)
 - Page publique : hero noir & or avec logo, marquee, chapitres, formulaire 3 étapes (montant/référence/pseudo/coordonnées → livraison Chronopost Relais 4,90 € / Chronopost Domicile 8,90 € / Mondial Relay 3,90 € → récap + CGV + bouton paiement).
 - Stripe : commande créée en BDD → session Checkout Stripe (montant serveur, EUR) → redirect → page succès avec polling de confirmation → webhook + fallback poll marquent la commande "paid".

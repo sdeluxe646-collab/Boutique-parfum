@@ -7,6 +7,10 @@ import uuid
 import bcrypt
 import jwt
 import stripe
+import httpx
+import xml.etree.ElementTree as ET
+from hashlib import md5
+from xml.sax.saxutils import escape
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 
@@ -31,7 +35,47 @@ SHIPPING_METHODS = {
     "chronopost_relais": {"name": "Chronopost Relais Express", "price": 4.90},
     "chronopost_domicile": {"name": "Chronopost Domicile Express 24h", "price": 8.90},
     "mondial_relay": {"name": "Mondial Relay Point Relais", "price": 3.90},
+    "groupage": {"name": "Colis groupé — port offert", "price": 0.0},
 }
+
+MR_ENDPOINT = os.environ.get("MR_ENDPOINT", "https://api.mondialrelay.com/Web_Services.asmx")
+MR_ENSEIGNE = os.environ.get("MR_ENSEIGNE", "BDTEST13")
+MR_PRIVATE_KEY = os.environ.get("MR_PRIVATE_KEY", "TestAPI1key")
+
+
+# ---------- Mondial Relay helpers ----------
+
+def mr_security_hash(values) -> str:
+    raw = "".join("" if v is None else str(v) for v in values) + MR_PRIVATE_KEY
+    return md5(raw.encode("utf-8")).hexdigest().upper()
+
+
+async def mr_soap_call(operation: str, fields) -> ET.Element:
+    ns = "http://www.mondialrelay.fr/webservice/"
+    body = "".join(f"<{k}>{escape(str(v))}</{k}>" for k, v in fields)
+    xml = f'''<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+ <soap:Body><{operation} xmlns="{ns}">{body}</{operation}></soap:Body>
+</soap:Envelope>'''
+    headers = {"Content-Type": "text/xml; charset=utf-8", "SOAPAction": f'"{ns}{operation}"'}
+    async with httpx.AsyncClient(timeout=30) as client_http:
+        resp = await client_http.post(MR_ENDPOINT, content=xml.encode(), headers=headers)
+    resp.raise_for_status()
+    return ET.fromstring(resp.content)
+
+
+def mr_tag(root: ET.Element, name: str) -> str:
+    for node in root.iter():
+        if node.tag.rsplit("}", 1)[-1] == name:
+            return (node.text or "").strip()
+    return ""
+
+
+def mr_child(node: ET.Element, name: str) -> str:
+    for x in node.iter():
+        if x is not node and x.tag.rsplit("}", 1)[-1] == name:
+            return (x.text or "").strip()
+    return ""
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +177,31 @@ class OrderCreate(BaseModel):
     country: str = "France"
     shipping_method: str
     cgv_accepted: bool
+    relay_id: Optional[str] = None
+    relay_name: Optional[str] = None
+    relay_address: Optional[str] = None
+
+
+async def find_groupable_order(email: str) -> Optional[dict]:
+    """Latest paid/pending order with real shipping for this email, within 7 days."""
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    return await db.orders.find_one(
+        {
+            "email": email.lower(),
+            "payment_status": {"$in": ["paid", "pending"]},
+            "shipping_method": {"$ne": "groupage"},
+            "created_at": {"$gte": since},
+        },
+        sort=[("created_at", -1)],
+    )
+
+
+@api_router.get("/orders/group-eligibility")
+async def group_eligibility(email: str):
+    order = await find_groupable_order(email)
+    if not order:
+        return {"eligible": False}
+    return {"eligible": True, "reference": order.get("reference"), "created_at": order.get("created_at")}
 
 
 @api_router.get("/shipping-methods")
@@ -147,6 +216,16 @@ async def create_order(req: OrderCreate):
     method = SHIPPING_METHODS.get(req.shipping_method)
     if not method:
         raise HTTPException(status_code=400, detail="Mode de livraison invalide")
+
+    group_id = None
+    if req.shipping_method == "groupage":
+        base = await find_groupable_order(req.email)
+        if not base:
+            raise HTTPException(status_code=400, detail="Aucune commande en cours à regrouper pour cet e-mail")
+        group_id = base["_id"]
+    if req.shipping_method == "mondial_relay" and not req.relay_id:
+        raise HTTPException(status_code=400, detail="Veuillez choisir votre Point Relais")
+
     shipping_cost = method["price"]
     total = round(req.amount + shipping_cost, 2)
     doc = {
@@ -165,9 +244,15 @@ async def create_order(req: OrderCreate):
         "shipping_method": req.shipping_method,
         "shipping_name": method["name"],
         "shipping_cost": shipping_cost,
+        "group_id": group_id,
+        "relay_id": req.relay_id,
+        "relay_name": req.relay_name,
+        "relay_address": req.relay_address,
         "total": total,
         "payment_status": "pending",
         "stripe_session_id": None,
+        "expedition_num": None,
+        "label_url": None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.orders.insert_one(doc)
@@ -257,6 +342,106 @@ async def stripe_webhook(request: Request):
             {"$set": {"payment_status": "failed"}},
         )
     return {"status": "ok"}
+
+
+# ---------- Mondial Relay ----------
+
+class RelaySearchRequest(BaseModel):
+    postcode: str = Field(min_length=4, max_length=10)
+    city: Optional[str] = ""
+    country: str = "FR"
+    results: int = Field(10, ge=1, le=30)
+
+
+@api_router.post("/relay-points")
+async def find_relay_points(req: RelaySearchRequest):
+    values = [
+        MR_ENSEIGNE, req.country, "", req.city or "", req.postcode, "", "",
+        "", "500", "24R", "0", "20", "", str(req.results),
+    ]
+    fields = [
+        ("Enseigne", MR_ENSEIGNE), ("Pays", req.country), ("NumPointRelais", ""),
+        ("Ville", req.city or ""), ("CP", req.postcode), ("Latitude", ""), ("Longitude", ""),
+        ("Taille", ""), ("Poids", "500"), ("Action", "24R"), ("DelaiEnvoi", "0"),
+        ("RayonRecherche", "20"), ("TypeActivite", ""), ("NACE", ""),
+        ("NombreResultats", str(req.results)),
+        ("Security", mr_security_hash(values)),
+    ]
+    try:
+        root = await mr_soap_call("WSI4_PointRelais_Recherche", fields)
+    except (httpx.HTTPError, ET.ParseError) as exc:
+        raise HTTPException(status_code=400, detail="Service Mondial Relay momentanément indisponible")
+    stat = mr_tag(root, "STAT")
+    if stat != "0":
+        raise HTTPException(status_code=400, detail=f"Service Mondial Relay momentanément indisponible (code {stat})")
+    relays = []
+    for node in root.iter():
+        if node.tag.rsplit("}", 1)[-1] == "PointRelais_Details":
+            relays.append({
+                "id": mr_child(node, "Num"),
+                "name": mr_child(node, "Lcom"),
+                "address": mr_child(node, "LgAdr1"),
+                "postcode": mr_child(node, "CP"),
+                "city": mr_child(node, "Ville"),
+                "distance": mr_child(node, "Distance"),
+            })
+    return relays
+
+
+@api_router.post("/admin/orders/{order_id}/label")
+async def create_label(order_id: str, user: dict = Depends(get_current_user)):
+    order = await db.orders.find_one({"_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Commande introuvable")
+    if order.get("label_url"):
+        return {"expedition": order.get("expedition_num"), "pdf_url": order["label_url"]}
+    if order.get("payment_status") != "paid":
+        raise HTTPException(status_code=400, detail="La commande doit être payée pour générer l'étiquette")
+    if order.get("shipping_method") != "mondial_relay" or not order.get("relay_id"):
+        raise HTTPException(status_code=400, detail="Étiquette disponible uniquement pour les envois Mondial Relay avec Point Relais")
+
+    weight = 500
+    if order.get("group_id"):
+        grouped = await db.orders.count_documents({"group_id": order["group_id"], "payment_status": "paid"})
+        weight = 500 + 250 * grouped
+
+    fields = [
+        ("Enseigne", MR_ENSEIGNE), ("ModeCol", "REL"), ("ModeLiv", "24R"),
+        ("NDossier", order_id[:20]), ("NClient", order_id[:8]),
+        ("Expe_Langage", "FR"), ("Expe_Ad1", os.environ.get("MR_SENDER_NAME", "L'Atelier des parfums")),
+        ("Expe_Ad2", ""), ("Expe_Ad3", os.environ.get("MR_SENDER_ADDRESS", "")), ("Expe_Ad4", ""),
+        ("Expe_Ville", os.environ.get("MR_SENDER_CITY", "Paris")),
+        ("Expe_CP", os.environ.get("MR_SENDER_POSTCODE", "75002")),
+        ("Expe_Pays", "FR"), ("Expe_Tel1", os.environ.get("MR_SENDER_PHONE", "")), ("Expe_Tel2", ""),
+        ("Expe_Mail", os.environ.get("MR_SENDER_EMAIL", "")),
+        ("Dest_Langage", "FR"), ("Dest_Ad1", f"{order['firstname']} {order['lastname']}"),
+        ("Dest_Ad2", ""), ("Dest_Ad3", order["relay_id"]), ("Dest_Ad4", ""),
+        ("Dest_Ville", order["city"]), ("Dest_CP", order["postal_code"]), ("Dest_Pays", "FR"),
+        ("Dest_Tel1", order["phone"]), ("Dest_Tel2", ""), ("Dest_Mail", order["email"]),
+        ("Poids", str(weight)), ("Longueur", ""), ("Taille", ""), ("NbColis", "1"),
+        ("CRT_Valeur", "0"), ("CRT_Devise", "EUR"), ("Exp_Valeur", "0"), ("Exp_Devise", "EUR"),
+        ("COL_Rel_Pays", "FR"), ("COL_Rel", ""), ("LIV_Rel_Pays", "FR"), ("LIV_Rel", order["relay_id"]),
+        ("TAvisage", ""), ("TReprise", ""), ("Montage", ""), ("TRDV", ""), ("Assurance", ""),
+        ("Instructions", f"Ref: {order['reference'][:40]}"),
+    ]
+    signature = mr_security_hash([v for _, v in fields])
+    fields += [("Security", signature), ("Texte", "")]
+    try:
+        root = await mr_soap_call("WSI2_CreationEtiquette", fields)
+    except (httpx.HTTPError, ET.ParseError) as exc:
+        raise HTTPException(status_code=400, detail="Service Mondial Relay momentanément indisponible")
+    stat = mr_tag(root, "STAT")
+    if stat and stat != "0":
+        raise HTTPException(status_code=400, detail=f"Service Mondial Relay momentanément indisponible (code {stat})")
+    expedition = mr_tag(root, "ExpeditionNum")
+    url = mr_tag(root, "URL_Etiquette")
+    if url and not url.startswith("http"):
+        url = "https://www.mondialrelay.com" + url
+    await db.orders.update_one(
+        {"_id": order_id},
+        {"$set": {"expedition_num": expedition, "label_url": url}},
+    )
+    return {"expedition": expedition, "pdf_url": url}
 
 
 # ---------- Admin ----------
