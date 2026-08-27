@@ -739,6 +739,24 @@ async def admin_messages(user: dict = Depends(get_current_user)):
     return [{"id": str(m.pop("_id")), **m} for m in messages]
 
 
+@api_router.get("/admin/stripe-balance")
+async def admin_stripe_balance(user: dict = Depends(get_current_user)):
+    try:
+        balance = stripe.Balance.retrieve()
+    except stripe.error.StripeError as exc:
+        raise HTTPException(status_code=400, detail="Solde Stripe indisponible pour le moment")
+    def eur(entries):
+        for e in entries:
+            if e.currency == "eur":
+                return e.amount / 100
+        return 0.0
+    return {
+        "available": eur(balance.available),
+        "pending": eur(balance.pending),
+        "mode": "live" if balance.livemode else "test",
+    }
+
+
 # ---------- Admin ----------
 
 def serialize_order(doc: dict) -> dict:
@@ -766,6 +784,14 @@ async def admin_stats(user: dict = Depends(get_current_user)):
         "total_orders_count": len(orders),
         "average_order_value": aov,
     }
+
+
+@api_router.delete("/admin/orders/{order_id}")
+async def admin_delete_order(order_id: str, user: dict = Depends(get_current_user)):
+    result = await db.orders.delete_one({"_id": order_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Commande introuvable")
+    return {"status": "ok"}
 
 
 class StatusUpdate(BaseModel):

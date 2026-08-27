@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Euro, CheckCircle2, Clock, ShoppingBag, LogOut, Download, RefreshCw, ChevronDown, Tag, PackagePlus, ExternalLink, Plus, Trash2, SprayCan, Loader2 } from "lucide-react";
+import { Euro, CheckCircle2, Clock, ShoppingBag, LogOut, Download, RefreshCw, ChevronDown, Tag, PackagePlus, ExternalLink, Plus, Trash2, SprayCan, Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatEUR } from "@/lib/api";
 
@@ -18,6 +18,7 @@ export default function AdminDashboard() {
   const [productForm, setProductForm] = useState({ name: "", ref: "", price: "", size: "50 ml", notes: "", img: "", desc: "" });
   const [savingProduct, setSavingProduct] = useState(false);
   const [stats, setStats] = useState(null);
+  const [stripeBalance, setStripeBalance] = useState(null);
   const [expanded, setExpanded] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ export default function AdminDashboard() {
       setStats(s);
       setMessages(m);
       setProducts(p);
+      api.get("/admin/stripe-balance").then(({ data }) => setStripeBalance(data)).catch(() => setStripeBalance(null));
     } catch {
       navigate("/admin");
     } finally {
@@ -91,6 +93,17 @@ export default function AdminDashboard() {
       load();
     } catch (e) {
       toast.error(e.response?.data?.detail || "Impossible de générer l'étiquette");
+    }
+  };
+
+  const deleteOrder = async (id, ref) => {
+    if (!window.confirm(`Supprimer définitivement la commande ${ref} ?`)) return;
+    try {
+      await api.delete(`/admin/orders/${id}`);
+      toast.success("Commande supprimée");
+      load();
+    } catch {
+      toast.error("Impossible de supprimer la commande");
     }
   };
 
@@ -166,6 +179,30 @@ export default function AdminDashboard() {
           ))}
         </div>
 
+        {stripeBalance && (
+          <div className="bg-[#161210] rounded-2xl p-5 gold-border-card flex flex-wrap items-center justify-between gap-4" data-testid="stripe-balance-card">
+            <div className="flex items-center gap-4">
+              <span className="h-11 w-11 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] flex items-center justify-center">
+                <Wallet className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-xs uppercase tracking-[0.15em] text-[#A09891]">Solde Stripe {stripeBalance.mode === "test" && <span className="text-amber-400">(mode test)</span>}</p>
+                <p className="text-sm text-[#F3EAD3] mt-1">
+                  Disponible : <span className="font-mono-lux gold-text font-semibold">{formatEUR(stripeBalance.available)}</span>
+                  <span className="text-[#6E6763]"> • En cours de versement : {formatEUR(stripeBalance.pending)}</span>
+                </p>
+              </div>
+            </div>
+            <a
+              href="https://dashboard.stripe.com/payouts" target="_blank" rel="noreferrer"
+              data-testid="link-stripe-payouts"
+              className="flex items-center gap-2 text-xs rounded-full border border-[#D4AF37]/40 text-[#D4AF37] px-4 py-2.5 hover:bg-[#D4AF37]/10 transition-colors"
+            >
+              <ExternalLink className="h-3.5 w-3.5" /> Mes virements bancaires
+            </a>
+          </div>
+        )}
+
         <div className="bg-[#161210] rounded-2xl gold-border-card overflow-hidden">
           <div className="px-6 py-4 border-b border-[#D4AF37]/10 flex items-center justify-between">
             <h2 className="font-display text-xl">Commandes reçues</h2>
@@ -197,7 +234,8 @@ export default function AdminDashboard() {
                       <FragmentRow key={o.id} o={o} st={st} isOpen={isOpen}
                         onToggle={() => setExpanded(isOpen ? null : o.id)}
                         onMarkPaid={() => markPaid(o.id)}
-                        onLabel={() => generateLabel(o.id)} />
+                        onLabel={() => generateLabel(o.id)}
+                        onDelete={() => deleteOrder(o.id, o.reference)} />
                     );
                   })}
                 </tbody>
@@ -283,7 +321,7 @@ export default function AdminDashboard() {
   );
 }
 
-function FragmentRow({ o, st, isOpen, onToggle, onMarkPaid, onLabel }) {
+function FragmentRow({ o, st, isOpen, onToggle, onMarkPaid, onLabel, onDelete }) {
   return (
     <>
       <tr className="border-b border-[#D4AF37]/5 hover:bg-white/[0.02] cursor-pointer" onClick={onToggle} data-testid={`order-row-${o.id.slice(0, 8)}`}>
@@ -325,6 +363,14 @@ function FragmentRow({ o, st, isOpen, onToggle, onMarkPaid, onLabel }) {
                 <Tag className="h-3 w-3" /> {o.label_url ? "Étiquette" : "Générer étiquette"}
               </button>
             )}
+            <button
+              data-testid={`btn-delete-order-${o.id.slice(0, 8)}`}
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="p-1.5 rounded-full border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
+              title="Supprimer la commande"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
             <ChevronDown className={`h-4 w-4 text-[#6E6763] transition-transform ${isOpen ? "rotate-180" : ""}`} />
           </div>
         </td>
