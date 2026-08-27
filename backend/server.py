@@ -686,7 +686,7 @@ class ProductIn(BaseModel):
 
 @api_router.get("/products")
 async def list_products():
-    products = await db.products.find().sort("created_at", 1).to_list(200)
+    products = await db.products.find().sort("created_at", 1).limit(200).to_list(200)
     return [{"id": str(p.pop("_id")), **p} for p in products]
 
 
@@ -730,7 +730,7 @@ async def create_contact(req: ContactMessage):
 
 @api_router.get("/admin/messages")
 async def admin_messages(user: dict = Depends(get_current_user)):
-    messages = await db.contact_messages.find().sort("created_at", -1).to_list(200)
+    messages = await db.contact_messages.find().sort("created_at", -1).limit(200).to_list(200)
     return [{"id": str(m.pop("_id")), **m} for m in messages]
 
 
@@ -743,13 +743,13 @@ def serialize_order(doc: dict) -> dict:
 
 @api_router.get("/admin/orders")
 async def admin_orders(user: dict = Depends(get_current_user)):
-    orders = await db.orders.find().sort("created_at", -1).to_list(500)
+    orders = await db.orders.find().sort("created_at", -1).limit(500).to_list(500)
     return [serialize_order(o) for o in orders]
 
 
 @api_router.get("/admin/stats")
 async def admin_stats(user: dict = Depends(get_current_user)):
-    orders = await db.orders.find().to_list(1000)
+    orders = await db.orders.find({}, {"payment_status": 1, "total": 1}).to_list(1000)
     paid = [o for o in orders if o.get("payment_status") == "paid"]
     pending = [o for o in orders if o.get("payment_status") == "pending"]
     total_revenue = round(sum(o.get("total", 0) for o in paid), 2)
@@ -805,7 +805,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 async def startup():
     await db.users.create_index("email", unique=True)
     await db.login_attempts.create_index("identifier")
-    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
 
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -821,36 +820,6 @@ async def startup():
         })
     elif not verify_password(admin_password, existing["password_hash"]):
         await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
-
-    if await db.orders.count_documents({}) == 0:
-        now = datetime.now(timezone.utc)
-        samples = [
-            {"amount": 45.0, "reference": "PARFUM-OUD-ROYAL-50ML", "pseudo": "@marine_live", "firstname": "Marine",
-             "lastname": "Dupont", "email": "marine.dupont@example.com", "phone": "+33612345678",
-             "address": "12 Rue de la Paix", "postal_code": "75002", "city": "Paris", "country": "France",
-             "shipping_method": "chronopost_relais", "payment_status": "paid",
-             "paid_at": (now - timedelta(days=1)).isoformat(), "created_at": (now - timedelta(days=1)).isoformat()},
-            {"amount": 32.5, "reference": "PARFUM-ROSE-LIVE-01", "pseudo": "@sophie.p", "firstname": "Sophie",
-             "lastname": "Martin", "email": "sophie.martin@example.com", "phone": "+33698765432",
-             "address": "5 Avenue des Fleurs", "postal_code": "69001", "city": "Lyon", "country": "France",
-             "shipping_method": "mondial_relay", "payment_status": "pending",
-             "created_at": (now - timedelta(hours=5)).isoformat()},
-            {"amount": 78.0, "reference": "COFFRET-DECOUVERTE-X3", "pseudo": "", "firstname": "Karim",
-             "lastname": "Benali", "email": "karim.benali@example.com", "phone": "+33711223344",
-             "address": "8 Rue du Vieux Port", "postal_code": "13001", "city": "Marseille", "country": "France",
-             "shipping_method": "chronopost_domicile", "payment_status": "pending",
-             "created_at": (now - timedelta(hours=2)).isoformat()},
-        ]
-        for s in samples:
-            method = SHIPPING_METHODS[s["shipping_method"]]
-            s.update({
-                "_id": str(uuid.uuid4()),
-                "shipping_name": method["name"],
-                "shipping_cost": method["price"],
-                "total": round(s["amount"] + method["price"], 2),
-                "stripe_session_id": None,
-            })
-        await db.orders.insert_many(samples)
 
 
 @app.on_event("shutdown")
