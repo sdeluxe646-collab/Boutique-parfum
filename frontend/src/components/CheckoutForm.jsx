@@ -36,6 +36,11 @@ export default function CheckoutForm() {
   const [relays, setRelays] = useState([]);
   const [selectedRelay, setSelectedRelay] = useState(null);
   const [relayLoading, setRelayLoading] = useState(false);
+  const [relaySearchEnabled, setRelaySearchEnabled] = useState(false);
+
+  useEffect(() => {
+    api.get("/config").then(({ data }) => setRelaySearchEnabled(!!data.relay_search_enabled)).catch(() => {});
+  }, []);
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
@@ -223,54 +228,55 @@ export default function CheckoutForm() {
           {shipping === "mondial_relay" && (
             <div className="mt-5 rounded-2xl border border-[#EBE5DB] bg-[#FAF7F2] p-5" data-testid="relay-picker">
               <p className="text-xs uppercase tracking-[0.15em] text-[#6E6763] mb-3 flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-[#C84B67]" /> Choisissez votre Point Relais
+                <MapPin className="h-4 w-4 text-[#C84B67]" /> Votre Point Relais
               </p>
-              <div className="flex gap-2">
-                <input
-                  data-testid="input-relay-postcode"
-                  className="lux-input flex-1" placeholder="Code postal (ex : 75002)"
-                  value={form.postal_code} onChange={set("postal_code")}
-                />
-                <button
-                  type="button" data-testid="button-search-relays" onClick={searchRelays} disabled={relayLoading}
-                  className="rounded-xl bg-[#1A1513] text-[#D4AF37] px-4 py-2 text-sm flex items-center gap-2 hover:bg-black transition-colors disabled:opacity-60"
-                >
-                  {relayLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  Rechercher
-                </button>
-              </div>
-              {relays.length > 0 && (
-                <div className="mt-4 max-h-56 overflow-y-auto space-y-2 pr-1">
-                  {relays.map((r) => (
+
+              {relaySearchEnabled && (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      data-testid="input-relay-postcode"
+                      className="lux-input flex-1" placeholder="Code postal (ex : 75002)"
+                      value={form.postal_code} onChange={set("postal_code")}
+                    />
                     <button
-                      key={r.id} type="button"
-                      data-testid={`relay-option-${r.id}`}
-                      onClick={() => setSelectedRelay(r)}
-                      className={`block w-full text-left rounded-xl border p-3 text-sm transition-colors ${
-                        selectedRelay?.id === r.id ? "border-[#C84B67] bg-white" : "border-[#EBE5DB] bg-white/60 hover:border-[#D4AF37]/60"
-                      }`}
+                      type="button" data-testid="button-search-relays" onClick={searchRelays} disabled={relayLoading}
+                      className="rounded-xl bg-[#1A1513] text-[#D4AF37] px-4 py-2 text-sm flex items-center gap-2 hover:bg-black transition-colors disabled:opacity-60"
                     >
-                      <span className="font-medium text-[#1A1513]">{r.name || `Point Relais ${r.id}`}</span>
-                      <span className="block text-xs text-[#6E6763]">{r.address}, {r.postcode} {r.city}</span>
+                      {relayLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                      Rechercher
                     </button>
-                  ))}
-                </div>
+                  </div>
+                  {relays.length > 0 && (
+                    <div className="mt-4 max-h-56 overflow-y-auto space-y-2 pr-1">
+                      {relays.map((r) => (
+                        <button
+                          key={r.id} type="button"
+                          data-testid={`relay-option-${r.id}`}
+                          onClick={() => setSelectedRelay(r)}
+                          className={`block w-full text-left rounded-xl border p-3 text-sm transition-colors ${
+                            selectedRelay?.id === r.id ? "border-[#C84B67] bg-white" : "border-[#EBE5DB] bg-white/60 hover:border-[#D4AF37]/60"
+                          }`}
+                        >
+                          <span className="font-medium text-[#1A1513]">{r.name || `Point Relais ${r.id}`}</span>
+                          <span className="block text-xs text-[#6E6763]">{r.address}, {r.postcode} {r.city}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-4 flex items-center gap-3">
+                    <span className="hairline flex-1" style={{ background: "#EBE5DB" }} />
+                    <span className="text-[10px] uppercase tracking-[0.2em] text-[#A09891]">ou</span>
+                    <span className="hairline flex-1" style={{ background: "#EBE5DB" }} />
+                  </div>
+                </>
               )}
-              {selectedRelay && (
-                <p className="mt-3 text-xs text-emerald-700" data-testid="relay-selected-hint">
-                  ✓ Point Relais retenu : {selectedRelay.name}{selectedRelay.city ? ` (${selectedRelay.city})` : ""}
-                </p>
-              )}
-              <div className="mt-4 flex items-center gap-3">
-                <span className="hairline flex-1" style={{ background: "#EBE5DB" }} />
-                <span className="text-[10px] uppercase tracking-[0.2em] text-[#A09891]">ou</span>
-                <span className="hairline flex-1" style={{ background: "#EBE5DB" }} />
-              </div>
+
               <label className="block mt-4">
-                <span className="block text-xs uppercase tracking-[0.12em] text-[#6E6763] mb-1.5">Indiquez votre Point Relais préféré (nom + ville) *</span>
+                <span className="block text-xs uppercase tracking-[0.12em] text-[#6E6763] mb-1.5">Nom du Point Relais + ville *</span>
                 <input
                   data-testid="input-relay-manual"
-                  className="lux-input" placeholder="ex : Relais Pickup Carrefour, 12 Rue des Lilas, Lyon"
+                  className="lux-input" placeholder="ex : Relais Pickup Carrefour, Lille Centre"
                   value={form.relay_manual || ""}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -278,7 +284,17 @@ export default function CheckoutForm() {
                     setSelectedRelay(v.trim() ? { id: "MANUEL", name: v.trim(), address: "", postcode: form.postal_code, city: form.city } : null);
                   }}
                 />
+                {!relaySearchEnabled && (
+                  <span className="block mt-1.5 text-xs text-[#A09891]">
+                    Astuce : trouvez le point relais le plus proche sur <strong>mondialrelay.fr</strong> (« Trouver un point relais ») puis copiez son nom ici.
+                  </span>
+                )}
               </label>
+              {selectedRelay && (
+                <p className="mt-3 text-xs text-emerald-700" data-testid="relay-selected-hint">
+                  ✓ Point Relais retenu : {selectedRelay.name}{selectedRelay.city ? ` (${selectedRelay.city})` : ""}
+                </p>
+              )}
             </div>
           )}
         </motion.section>

@@ -672,6 +672,11 @@ async def create_label(order_id: str, user: dict = Depends(get_current_user)):
     return {"expedition": expedition, "pdf_url": url}
 
 
+@api_router.get("/config")
+async def public_config():
+    return {"relay_search_enabled": MR_ENSEIGNE not in ("BDTEST13", "BDTEST", "")}
+
+
 # ---------- Products (catalogue géré par l'admin) ----------
 
 class ProductIn(BaseModel):
